@@ -1,0 +1,17 @@
+{
+  "constraints": [],
+  "providers": [],
+  "defaultProvider": "deepseek",
+  "defaultModel": "deepseek-v4-flash",
+  "defaultReasoningEffort": "auto",
+  "mergeProvider": "deepseek",
+  "mergeModel": "deepseek-v4-flash",
+  "mergeReasoningEffort": "auto",
+  "decomposePreset": "structure",
+  "decomposePrompt": "",
+  "autoCompactEnabled": true,
+  "autoCompactMessageLimit": 12,
+  "sidebarWidth": 460,
+  "connectionShape": "curve",
+  "connectionStroke": "solid"
+}

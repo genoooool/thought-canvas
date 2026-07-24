@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import { hasLikelyUtf8Mojibake, inspectUtf8Mojibake, repairUtf8Mojibake, repairUtf8MojibakeDeep } from '../text-encoding.js';
+
+const screenshotSample = 'è§£é‡Š Harness é‡Œé¢ loop çš„æ¦‚å¿µã€è¿è¡Œæœºåˆ¶åŠå®žé™…åº”ç”¨';
+assert.equal(repairUtf8Mojibake(screenshotSample), '解释 Harness 里面 loop 的概念、运行机制及实际应用');
+assert.equal(repairUtf8Mojibake('ã“ã‚“ã«ã¡ã¯'), 'こんにちは');
+assert.equal(repairUtf8Mojibake('Ã¨Â§Â£Ã©Â‡ÂŠ'), '解释');
+assert.equal(repairUtf8Mojibake('正常前缀：è§£é‡Š loop；正常后缀'), '正常前缀：解释 loop；正常后缀');
+assert.equal(repairUtf8Mojibake('café déjà vu — naïve'), 'café déjà vu — naïve');
+assert.equal(repairUtf8Mojibake('English / 日本語 / 简体中文'), 'English / 日本語 / 简体中文');
+assert.equal(repairUtf8Mojibake('model-id:gpt-5.6-sol'), 'model-id:gpt-5.6-sol');
+assert.equal(hasLikelyUtf8Mojibake(screenshotSample), true);
+assert.equal(hasLikelyUtf8Mojibake('普通中文'), false);
+const inspected = inspectUtf8Mojibake(screenshotSample);
+assert.equal(inspected.repaired, true);
+assert.ok(inspected.beforeScore > inspected.afterScore);
+const deep = repairUtf8MojibakeDeep({ title: screenshotSample, nodes: [{ content: 'ã“ã‚“ã«ã¡ã¯' }], id: 'project_123' });
+assert.equal(deep.repairs, 2);
+assert.equal(deep.value.title, '解释 Harness 里面 loop 的概念、运行机制及实际应用');
+assert.equal(deep.value.nodes[0].content, 'こんにちは');
+assert.equal(deep.value.id, 'project_123');
+console.log('PASS text encoding repair');

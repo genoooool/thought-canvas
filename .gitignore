@@ -1,0 +1,11 @@
+.env.local
+node_modules/
+.DS_Store
+__pycache__/
+*.pyc
+data/settings.local.json
+data/runtime.local.json
+data/projects/*.json
+!data/projects/.gitkeep
+data/backups/*.json
+!data/backups/.gitkeep

@@ -1,0 +1,22 @@
+{
+  "name": "thought-canvas-mvp-v12-5",
+  "version": "1.2.5",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check app.js && node --check selection-utils.js && node --check text-encoding.js && node --check i18n.js && node --check server.mjs && node --check providers.js && node --check provider-capabilities.js && node --check codex-app-server.mjs && node --check thinking-core.js",
+    "test:selection": "node tests/selection-utils-test.mjs",
+    "test:encoding": "node tests/text-encoding-test.mjs",
+    "test:i18n": "node tests/i18n-test.mjs",
+    "test:capabilities": "node tests/provider-capabilities-test.mjs",
+    "test:core": "node tests/thinking-core-test.mjs",
+    "test:local": "node tests/local-api-test.mjs",
+    "test:codex": "node tests/codex-permissions-test.mjs && node tests/codex-bridge-test.mjs",
+    "test:browser": "python3 tests/browser_e2e.py",
+    "test:deepseek": "node scripts/test-deepseek.mjs",
+    "test": "npm run test:browser && npm run test:node",
+    "verify:package": "node scripts/verify-package.mjs .",
+    "test:node": "npm run check && npm run test:selection && npm run test:encoding && npm run test:i18n && npm run test:capabilities && npm run test:core && npm run test:local && npm run test:codex"
+  }
+}
