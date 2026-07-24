@@ -187,6 +187,7 @@ let projectSaveStatus = 'saved';
 let lastProjectSavedAt = '';
 let projectSaveSequence = 0;
 let busyIds = new Set();
+let pendingMergeVisual = null;
 let interactionMode = 'select';
 let spacePressed = false;
 let nodeDrag = null;
@@ -1550,7 +1551,7 @@ function renderEdges() {
 function renderNodes() {
   const kindLabel = { root: '根问题', content_section: '讲解模块', organized_summary: '整理结果', answer_branch: '追问分支', conversation: '追问分支', merge_summary: '汇总节点', merge: '汇总节点', annotation: '标注模块' };
   const statusLabel = { open: '待理解', exploring: '讨论中', resolved: '已完成', archived: '已归档' };
-  nodesLayer.innerHTML = visibleNodes().map(node => {
+  const nodeMarkup = visibleNodes().map(node => {
     const activeChildren = directChildren(node.id).filter(child => child.status !== 'archived');
     const allChildren = allDirectChildren(node.id).filter(child => child.status !== 'archived');
     const resolvedChildren = activeChildren.filter(child => child.status === 'resolved').length;
@@ -1579,6 +1580,21 @@ function renderNodes() {
       </div>` : ''}
     </article>`;
   }).join('');
+  const pendingMarkup = pendingMergeVisual ? `
+    <article class="node kind-merge_summary merge-pending processing" data-pending-merge="true" aria-busy="true"
+      style="left:${pendingMergeVisual.x}px;top:${pendingMergeVisual.y}px;height:${nodeHeight(pendingMergeVisual)}px">
+      <div class="node-top">
+        <span class="node-kind">汇总节点</span>
+        <span><span class="node-status exploring">讨论中</span><span class="node-confidence partial">${escapeHtml(CONFIDENCE_STATUS_LABELS.partial || '部分可信')}</span></span>
+      </div>
+      <h3>${escapeHtml(pendingMergeVisual.title)}</h3>
+      <p><span class="node-processing-copy"><i></i>AI 正在汇总所选内容…</span></p>
+      <div class="node-footer">
+        <span class="node-provider">处理中</span>
+        <span class="node-progress">${pendingMergeVisual.sourceCount} 个节点</span>
+      </div>
+    </article>` : '';
+  nodesLayer.innerHTML = nodeMarkup + pendingMarkup;
 
   $$('[data-node-branch]').forEach(button => {
     button.addEventListener('mousedown', event => { event.preventDefault(); event.stopPropagation(); });
@@ -1603,7 +1619,7 @@ function renderNodes() {
 
   $$('[data-node-annotation]').forEach(button => bindAnnotationHandle(button));
 
-  $$('.node').forEach(el => {
+  $$('.node:not([data-pending-merge])').forEach(el => {
     el.addEventListener('mousedown', e => {
       e.stopPropagation();
       const id = el.dataset.id;
@@ -5145,6 +5161,16 @@ async function confirmMerge() {
   $('#mergeDialog').close();
   const focus = $('#mergeFocus').value.trim();
   const mergeSnapshot = createMergeContextSnapshot(included, focus);
+  const sourceNodes = included.map(item => item.node);
+  const pendingPosition = mergePosition(sourceNodes);
+  pendingMergeVisual = {
+    x: pendingPosition.x,
+    y: pendingPosition.y,
+    title: focus ? deriveTitle(focus) : '所选内容汇总',
+    sourceCount: sourceNodes.length,
+    kind: 'merge_summary',
+    summary: 'AI 正在汇总所选内容…'
+  };
   const mergeCall = startModelCall({
     nodeId: 'merge_pending',
     provider: state.mergeProvider,
@@ -5154,7 +5180,8 @@ async function confirmMerge() {
     purpose: 'merge'
   });
   busyIds.add('merge');
-  updateBusyToast();
+  let mergeSucceeded = false;
+  render();
   try {
     const payload = await apiJson('/api/synthesize', {
       mode: 'synthesis',
@@ -5173,7 +5200,6 @@ async function confirmMerge() {
         inputMode: item.mode
       }))
     });
-    const sourceNodes = included.map(item => item.node);
     const coverage = unique(sourceNodes.flatMap(node => [node.id, ...(node.coverageIds || [])]));
     const position = mergePosition(sourceNodes);
     const answerMessage = makeMessage('assistant', payload.text || '', { provider: state.mergeProvider, model: state.mergeModel, reasoningEffort: state.mergeReasoningEffort, type: 'merge_summary', callId: mergeCall.id });
@@ -5233,14 +5259,19 @@ async function confirmMerge() {
     state.selectedIds = [mergeNode.id];
     autoLayoutGraph({ persist: false });
     focusNodesInView([...sourceNodes.map(node => node.id), mergeNode.id], { persist: false, renderNow: false, maxScale: .9 });
-    saveAndRender();
+    mergeSucceeded = true;
   } catch (error) {
     finishModelCall(mergeCall, { success: false, error: friendlyErrorMessage(error) });
-    saveState();
     showOperationError('汇总失败', friendlyErrorMessage(error));
   } finally {
+    pendingMergeVisual = null;
     busyIds.delete('merge');
     updateBusyToast();
+    if (mergeSucceeded) saveAndRender();
+    else {
+      saveState();
+      render();
+    }
   }
 }
 

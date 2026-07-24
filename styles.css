@@ -938,6 +938,7 @@ dialog { color: var(--text); }
 
 .node.processing { border-style: dashed; border-color: rgba(197,180,247,.66); box-shadow: 0 0 0 1px rgba(169,140,255,.08), 0 18px 55px rgba(0,0,0,.34); animation: tc-node-processing 2.4s ease-in-out infinite; }
 .node.processing .node-status { color: #cabdf0; background: rgba(169,140,255,.10); }
+.node.merge-pending { pointer-events: none; }
 .node-processing-copy { display: inline-flex; align-items: center; gap: 8px; color: #aaa0c6; }
 .node-processing-copy i { width: 7px; height: 7px; border-radius: 50%; background: #bca9f5; box-shadow: 0 0 0 0 rgba(188,169,245,.4); animation: tc-processing-dot 1.8s ease-out infinite; }
 .edge.processing-edge, .branch-trunk.processing-edge { stroke-dasharray: 8 8; stroke: rgba(190,172,244,.72); animation: tc-edge-flow 2.2s linear infinite; }
