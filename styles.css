@@ -965,7 +965,26 @@ html, body, #app, .workspace { height: 100dvh; }
 .header-actions #archiveNodeBtn, .header-actions #restoreNodeBtn { width: auto; min-width: 52px; padding: 0 10px; }
 .status-select { min-width: 92px; }
 .sidebar-heading { margin-top: 14px; }
-.sidebar-heading h1, .sidebar-heading p { max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+.sidebar-heading h1, .sidebar-heading p {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.sidebar-heading h1 {
+  display: -webkit-box;
+  max-height: calc(1.35em * 3);
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.sidebar-heading p {
+  display: -webkit-box;
+  max-height: calc(1.58em * 5);
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  text-overflow: ellipsis;
+}
 .node-context-row { min-width: 0; flex-wrap: wrap; row-gap: 6px; }
 .context-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

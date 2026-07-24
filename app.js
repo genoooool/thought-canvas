@@ -1846,7 +1846,7 @@ function renderSidebar() {
       </div>
       <div class="sidebar-heading">
         <h1>${escapeHtml(node.title)}</h1>
-        ${showDescription ? `<p>${escapeHtml(description)}</p>` : ''}
+        ${showDescription ? `<p title="${escapeAttr(description)}">${escapeHtml(description)}</p>` : ''}
       </div>
       <div class="node-context-row">
         <span class="context-chip">${isAnnotation ? escapeHtml(ANNOTATION_TYPE_LABELS[node.annotationType] || '标注') : providerLabel(node.provider || getComposerSelection(node.id).provider)}</span>
