@@ -1,7 +1,7 @@
 {
   "name": "thought-canvas",
   "version": "1.2.5",
-  "description": "Local-first branching AI conversation canvas with visual reasoning, Codex OAuth, Markdown export, and Obsidian knowledge workflows.",
+  "description": "Local-first branching AI conversation canvas for multi-model answer comparison, visual reasoning, Codex OAuth, Markdown export, and Obsidian workflows.",
   "private": true,
   "type": "module",
   "homepage": "https://github.com/genoooool/thought-canvas#readme",
@@ -17,6 +17,7 @@
     "local-first",
     "markdown",
     "mind-map",
+    "multi-model",
     "obsidian",
     "reasoning",
     "visual-ai"
