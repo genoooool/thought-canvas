@@ -57,6 +57,51 @@ const ANNOTATION_TYPE_LABELS = Object.freeze({
   risk: '风险',
   action: '行动'
 });
+const ANNOTATION_COLOR_STYLES = Object.freeze({
+  auto: null,
+  violet: {
+    fill: 'rgba(169,140,255,.14)',
+    border: 'rgba(207,192,255,.64)',
+    accent: '#b7a6ef',
+    label: '#d1c5f6',
+    swatch: '#a98cff'
+  },
+  slate: {
+    fill: 'rgba(132,150,178,.14)',
+    border: 'rgba(168,187,216,.56)',
+    accent: '#9eb7d7',
+    label: '#c2d0e3',
+    swatch: '#839ab9'
+  },
+  blue: {
+    fill: 'rgba(98,153,218,.14)',
+    border: 'rgba(139,190,244,.58)',
+    accent: '#82b7e6',
+    label: '#bcd9f0',
+    swatch: '#6299da'
+  },
+  mint: {
+    fill: 'rgba(102,190,156,.14)',
+    border: 'rgba(133,222,186,.56)',
+    accent: '#78d0ae',
+    label: '#b9e5d1',
+    swatch: '#66be9c'
+  },
+  amber: {
+    fill: 'rgba(216,180,91,.15)',
+    border: 'rgba(238,211,132,.58)',
+    accent: '#ddbd6f',
+    label: '#ead79d',
+    swatch: '#d8b45b'
+  },
+  rose: {
+    fill: 'rgba(218,125,139,.14)',
+    border: 'rgba(241,165,177,.58)',
+    accent: '#df8f9d',
+    label: '#ecc0c7',
+    swatch: '#da7d8b'
+  }
+});
 const localSessionToken = document.querySelector('meta[name="thought-canvas-session"]')?.content || '';
 const API_SESSION_HEADER = 'x-thought-canvas-session';
 const API_ENCODING_REPAIR = Symbol('apiEncodingRepair');
@@ -106,8 +151,10 @@ function makeNode(overrides = {}) {
     sourceNodeIds: [],
     decisionArtifactId: '',
     annotationType: '',
+    annotationColor: 'auto',
     annotationSourceNodeId: '',
     annotationManualPosition: false,
+    layoutStable: false,
     collapsed: false,
     groupId: '',
     layoutOrder: 0,
@@ -699,7 +746,12 @@ function normalizeState() {
   };
   state.providers = normalizeProviderProfiles(state.providers);
   state.nodes = (state.nodes || []).map(n => {
+    const hasLayoutStable = Object.hasOwn(n, 'layoutStable');
     const node = makeNode(n);
+    // Older projects already have intentional coordinates. Keep them fixed
+    // during incremental placement; the explicit auto-layout action can still
+    // reflow the whole canvas.
+    node.layoutStable = hasLayoutStable ? Boolean(node.layoutStable) : true;
     if (['branch','section'].includes(node.kind) && ['auto_branch','manual_decompose','auto_decompose','selection_decompose'].includes(node.origin)) {
       node.kind = 'content_section';
       node.content = node.content || node.summary || node.question;
@@ -725,6 +777,7 @@ function normalizeState() {
     node.confidenceStatus = Object.hasOwn(CONFIDENCE_STATUS_LABELS, node.confidenceStatus) ? node.confidenceStatus : 'unverified';
     node.decisionArtifactId = String(node.decisionArtifactId || '');
     node.annotationType = Object.hasOwn(ANNOTATION_TYPE_LABELS, node.annotationType) ? node.annotationType : (node.kind === 'annotation' ? 'note' : '');
+    node.annotationColor = Object.hasOwn(ANNOTATION_COLOR_STYLES, node.annotationColor) ? node.annotationColor : 'auto';
     node.annotationSourceNodeId = String(node.annotationSourceNodeId || (node.kind === 'annotation' ? node.parentId || '' : ''));
     node.annotationManualPosition = Boolean(node.annotationManualPosition);
     node.collapsed = Boolean(node.collapsed);
@@ -793,7 +846,7 @@ function normalizeState() {
   if (!state.selectedIds.length && state.nodes.length) state.selectedIds = [state.nodes[0].id];
   state.sidebarWidth = clamp(Number(state.sidebarWidth || 440), 360, 680);
   cascadeAllParentStatuses();
-  if (graphHasOverlaps()) autoLayoutGraph({ persist: false });
+  if (graphHasOverlaps()) autoLayoutGraph({ persist: false, preserveExisting: false });
 }
 
 
@@ -897,7 +950,7 @@ function bindGlobalControls() {
   $('#selectToolBtn').addEventListener('click', () => setInteractionMode('select'));
   $('#handToolBtn').addEventListener('click', () => setInteractionMode('hand'));
   $('#fitBtn').addEventListener('click', fitView);
-  $('#autoLayoutBtn').addEventListener('click', () => { autoLayoutGraph(); fitView(); });
+  $('#autoLayoutBtn').addEventListener('click', () => { autoLayoutGraph({ preserveExisting: false }); fitView(); });
   $('#toggleArchiveBtn').addEventListener('click', () => { state.showArchived = !state.showArchived; saveAndRender(); });
   $('#nodeSearchInput')?.addEventListener('input', event => {
     nodeSearchQuery = event.target.value.trim();
@@ -942,6 +995,12 @@ function bindGlobalControls() {
   $('#annotationForm')?.addEventListener('submit', event => {
     event.preventDefault();
     saveAnnotationFromDialog();
+  });
+  $$('[data-annotation-color]').forEach(button => {
+    button.addEventListener('click', event => {
+      event.preventDefault();
+      setAnnotationColorPicker(button.dataset.annotationColor || 'auto');
+    });
   });
   $('#deleteAnnotationBtn')?.addEventListener('click', deleteAnnotationFromDialog);
   $('#annotationDialog')?.addEventListener('close', () => {
@@ -1065,6 +1124,7 @@ function bindCanvas() {
         if (node && origin) {
           node.x = origin.x + dx;
           node.y = origin.y + dy;
+          if (Math.abs(dx) + Math.abs(dy) > 2) node.layoutStable = true;
           if (node.kind === 'annotation' && Math.abs(dx) + Math.abs(dy) > 2) node.annotationManualPosition = true;
           node.updatedAt = now();
         }
@@ -1094,8 +1154,18 @@ function bindCanvas() {
   });
 
   window.addEventListener('mouseup', () => {
-    if (nodeDrag || canvasPan || sidebarResize) saveState();
-    nodeDrag = null;
+    const completedDrag = nodeDrag;
+    if (completedDrag) {
+      nodeDrag = null;
+      if (!completedDrag.moved && completedDrag.grouped) {
+        state.selectedIds = [completedDrag.primaryId];
+        saveAndRender();
+      } else {
+        saveState();
+      }
+    } else if (canvasPan || sidebarResize) {
+      saveState();
+    }
     canvasPan = null;
     viewport.classList.remove('panning');
     if (sidebarResize) {
@@ -1548,6 +1618,28 @@ function renderEdges() {
   edgesSvg.innerHTML = paths.join('');
 }
 
+function annotationColorStyle(node) {
+  if (!node || node.kind !== 'annotation') return '';
+  const palette = ANNOTATION_COLOR_STYLES[node.annotationColor];
+  if (!palette) return '';
+  return `--annotation-fill:${palette.fill};--annotation-border:${palette.border};--annotation-accent:${palette.accent};--annotation-label:${palette.label};`;
+}
+
+function annotationColorClass(node) {
+  return node?.kind === 'annotation' && ANNOTATION_COLOR_STYLES[node.annotationColor] ? 'annotation-custom' : '';
+}
+
+function setAnnotationColorPicker(color = 'auto') {
+  const normalized = Object.hasOwn(ANNOTATION_COLOR_STYLES, color) ? color : 'auto';
+  const input = $('#annotationColorInput');
+  if (input) input.value = normalized;
+  $$('[data-annotation-color]').forEach(button => {
+    const selected = button.dataset.annotationColor === normalized;
+    button.classList.toggle('selected', selected);
+    button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+}
+
 function renderNodes() {
   const kindLabel = { root: '根问题', content_section: '讲解模块', organized_summary: '整理结果', answer_branch: '追问分支', conversation: '追问分支', merge_summary: '汇总节点', merge: '汇总节点', annotation: '标注模块' };
   const statusLabel = { open: '待理解', exploring: '讨论中', resolved: '已完成', archived: '已归档' };
@@ -1562,10 +1654,13 @@ function renderNodes() {
     const footerLabel = processing
       ? '处理中'
       : provider || (node.kind === 'content_section' ? '来自回答拆解' : node.kind === 'annotation' ? `${annotationLabel} · 本地模块` : '');
-    return `<article class="node kind-${node.kind} annotation-${escapeAttr(node.annotationType || 'none')} ${node.collapsed ? 'collapsed' : ''} ${processing ? 'processing' : ''} ${state.selectedIds.includes(node.id) ? 'selected' : ''} ${node.status === 'archived' ? 'archived' : ''} ${node.status === 'resolved' ? 'resolved' : ''} ${nodeMatchesSearch(node) ? 'search-match' : ''}" data-id="${node.id}" aria-busy="${processing ? 'true' : 'false'}" style="left:${node.x}px;top:${node.y}px;height:${nodeHeight(node)}px">
+    const annotationState = node.kind === 'annotation'
+      ? '<span class="node-annotation-state">本地标注</span>'
+      : `<span class="node-status ${node.status}">${statusLabel[node.status] || node.status}</span><span class="node-confidence ${node.confidenceStatus}">${escapeHtml(CONFIDENCE_STATUS_LABELS[node.confidenceStatus] || '未验证')}</span>`;
+    return `<article class="node kind-${node.kind} annotation-${escapeAttr(node.annotationType || 'none')} ${annotationColorClass(node)} ${node.collapsed ? 'collapsed' : ''} ${processing ? 'processing' : ''} ${state.selectedIds.includes(node.id) ? 'selected' : ''} ${node.status === 'archived' ? 'archived' : ''} ${node.status === 'resolved' ? 'resolved' : ''} ${nodeMatchesSearch(node) ? 'search-match' : ''}" data-id="${node.id}" aria-busy="${processing ? 'true' : 'false'}" style="left:${node.x}px;top:${node.y}px;height:${nodeHeight(node)}px;${annotationColorStyle(node)}">
       <div class="node-top">
         <span class="node-kind">${node.kind === 'annotation' ? escapeHtml(annotationLabel) : kindLabel[node.kind] || '思考节点'}</span>
-        <span><span class="node-status ${node.status}">${statusLabel[node.status] || node.status}</span><span class="node-confidence ${node.confidenceStatus}">${escapeHtml(CONFIDENCE_STATUS_LABELS[node.confidenceStatus] || '未验证')}</span></span>
+        <span>${annotationState}</span>
       </div>
       <h3>${escapeHtml(node.title)}</h3>
       <p>${processing ? '<span class="node-processing-copy"><i></i>AI 正在生成这个节点…</span>' : escapeHtml(node.summary || node.content || node.question || '点击后开始讨论')}</p>
@@ -1623,19 +1718,36 @@ function renderNodes() {
     el.addEventListener('mousedown', e => {
       e.stopPropagation();
       const id = el.dataset.id;
-      if (e.ctrlKey || e.metaKey) {
-        state.selectedIds = state.selectedIds.includes(id)
+      const additive = e.ctrlKey || e.metaKey;
+      const wasSelected = state.selectedIds.includes(id);
+      if (additive) {
+        state.selectedIds = wasSelected
           ? state.selectedIds.filter(selected => selected !== id)
           : [...state.selectedIds, id];
-      } else {
+      } else if (!wasSelected || state.selectedIds.length <= 1) {
         state.selectedIds = [id];
       }
-      const dragIds = [id];
+      const dragIds = additive
+        ? (state.selectedIds.includes(id) ? [...state.selectedIds] : [])
+        : (wasSelected && state.selectedIds.length > 1 ? [...state.selectedIds] : [id]);
+      if (!dragIds.length) {
+        render();
+        return;
+      }
+      state.selectedIds = unique(dragIds);
       const origins = Object.fromEntries(dragIds.map(nodeId => {
         const node = getNode(nodeId);
         return [nodeId, { x: node.x, y: node.y }];
       }));
-      nodeDrag = { ids: dragIds, origins, startX: e.clientX, startY: e.clientY, moved: false };
+      nodeDrag = {
+        ids: dragIds,
+        origins,
+        startX: e.clientX,
+        startY: e.clientY,
+        moved: false,
+        primaryId: id,
+        grouped: !additive && wasSelected && state.selectedIds.length > 1
+      };
       render();
     });
     el.addEventListener('dblclick', e => {
@@ -1766,17 +1878,18 @@ function defaultAnnotationPosition(source, { excludeId = '', startOffset = 0 } =
   const height = 168;
   const verticalStep = height + 34;
   const lanes = [
-    source.x + 42,
-    source.x - NODE_W - 82,
-    source.x + NODE_W + 82
+    { x: source.x + NODE_W + 82, y: source.y },
+    { x: source.x - NODE_W - 82, y: source.y },
+    { x: source.x + 42, y: source.y + nodeHeight(source) + 82 }
   ];
   const occupied = state.nodes.filter(node => node.id !== source.id && node.id !== excludeId && node.status !== 'archived');
-  let fallback = { x: lanes[0], y: source.y + nodeHeight(source) + 82 + startOffset * verticalStep, manual: false };
-  for (let laneIndex = 0; laneIndex < lanes.length; laneIndex += 1) {
-    for (let attempt = 0; attempt < 18; attempt += 1) {
+  let fallback = { x: lanes[0].x, y: lanes[0].y + startOffset * verticalStep, manual: false };
+  for (let attempt = 0; attempt < 18; attempt += 1) {
+    for (let laneIndex = 0; laneIndex < lanes.length; laneIndex += 1) {
+      const lane = lanes[laneIndex];
       const candidate = {
-        x: clamp(lanes[laneIndex], 20, 11200),
-        y: clamp(source.y + nodeHeight(source) + 82 + (startOffset + attempt) * verticalStep, 20, 11200),
+        x: clamp(lane.x, 20, 11200),
+        y: clamp(lane.y + (startOffset + attempt) * verticalStep, 20, 11200),
         manual: false
       };
       fallback = candidate;
@@ -1818,6 +1931,7 @@ function renderSidebar() {
     : ['open', 'exploring', 'resolved'].map(status => `<option value="${status}" ${node.status === status ? 'selected' : ''}>${({ open: '待理解', exploring: '讨论中', resolved: '已完成' })[status]}</option>`).join('');
   const confidenceOptions = Object.entries(CONFIDENCE_STATUS_LABELS).map(([status, label]) => `<option value="${status}" ${node.confidenceStatus === status ? 'selected' : ''}>${label}</option>`).join('');
   const isAnnotation = node.kind === 'annotation';
+  const annotationHeaderState = isAnnotation ? '<span class="annotation-header-state">本地标注</span>' : '';
   const visibleChildren = allDirectChildren(node.id).filter(child => child.status !== 'archived');
   const canCollapse = visibleChildren.length > 0;
 
@@ -1826,8 +1940,8 @@ function renderSidebar() {
       <div class="sidebar-header-top">
         <span class="breadcrumb" title="${escapeAttr(breadcrumb)}">${breadcrumbHtml}</span>
         <div class="header-actions">
-          <select id="nodeStatusSelect" class="status-select" aria-label="工作状态" title="工作状态">${statusOptions}</select>
-          <select id="nodeConfidenceSelect" class="status-select confidence-select" aria-label="可信状态" title="可信状态">${confidenceOptions}</select>
+          ${isAnnotation ? annotationHeaderState : `<select id="nodeStatusSelect" class="status-select" aria-label="工作状态" title="工作状态">${statusOptions}</select>
+          <select id="nodeConfidenceSelect" class="status-select confidence-select" aria-label="可信状态" title="可信状态">${confidenceOptions}</select>`}
           ${!isArchived ? '<button id="addAnnotationBtn" class="header-secondary-action" title="添加本地标注模块">＋ 标注</button>' : ''}
           <button id="contextInspectorBtn" class="header-primary-action" title="查看本次模型上下文">上下文</button>
           <details class="node-more-menu">
@@ -1927,25 +2041,25 @@ function renderSourceContent(node) {
   if (!node.content) return '';
   if (node.kind === 'annotation') {
     const label = ANNOTATION_TYPE_LABELS[node.annotationType] || '标注';
-    return `<article class="source-content-card annotation-content-card" data-source-content-node="${escapeAttr(node.id)}">
+    return `<article class="source-content-card annotation-content-card ${annotationColorClass(node)}" data-source-content-node="${escapeAttr(node.id)}" style="${annotationColorStyle(node)}">
       <div class="source-content-head">
         <span>${escapeHtml(label)}内容</span>
         <em>本地标注 · 可编辑</em>
       </div>
       <div class="message-body rich-content" data-source-selection-body>${markdownToHtml(node.content)}</div>
       <div class="source-content-actions" aria-label="标注模块操作">
-        <button type="button" data-edit-annotation="${escapeAttr(node.id)}">编辑标注</button>
-        <button type="button" data-decompose-source="${escapeAttr(node.id)}">拆解标注内容</button>
-        <button type="button" data-decompose-source-selection="${escapeAttr(node.id)}">拆解选中文字</button>
-        <button type="button" data-promote-source-selection="${escapeAttr(node.id)}">提炼选中文字</button>
+        <button type="button" class="source-action-edit" data-edit-annotation="${escapeAttr(node.id)}">编辑标注</button>
+        <button type="button" class="source-action-primary" data-decompose-source="${escapeAttr(node.id)}">拆解标注内容</button>
+        <button type="button" class="source-action-secondary" data-decompose-source-selection="${escapeAttr(node.id)}">拆解选中文字</button>
+        <button type="button" class="source-action-secondary" data-promote-source-selection="${escapeAttr(node.id)}">提炼选中文字</button>
       </div>
     </article>`;
   }
   const sourceRange = node.sourceStart >= 0 ? `${node.sourceStart}–${node.sourceEnd}` : '可见选区 · 原文位置未定位';
   const recursiveActions = node.kind === 'content_section' ? `<div class="source-content-actions" aria-label="讲解模块操作">
-      <button type="button" data-decompose-source="${escapeAttr(node.id)}">继续拆解这个模块</button>
-      <button type="button" data-decompose-source-selection="${escapeAttr(node.id)}">拆解选中文字</button>
-      <button type="button" data-promote-source-selection="${escapeAttr(node.id)}">提炼选中文字</button>
+      <button type="button" class="source-action-primary" data-decompose-source="${escapeAttr(node.id)}">继续拆解这个模块</button>
+      <button type="button" class="source-action-secondary" data-decompose-source-selection="${escapeAttr(node.id)}">拆解选中文字</button>
+      <button type="button" class="source-action-secondary" data-promote-source-selection="${escapeAttr(node.id)}">提炼选中文字</button>
     </div>` : '';
   return `<article class="source-content-card" data-source-content-node="${escapeAttr(node.id)}">
     <div class="source-content-head">
@@ -2670,6 +2784,7 @@ function openAnnotationDialog(sourceNodeId, { position = null, annotationNodeId 
   $('#annotationDialogTitle').textContent = annotation ? '编辑标注模块' : '新建标注模块';
   $('#annotationSourceLabel').textContent = `连接到“${source.title}”。标注不会进入来源节点的子分支完成度；需要时仍可围绕标注继续追问。`;
   $('#annotationTypeSelect').value = annotation?.annotationType || 'note';
+  setAnnotationColorPicker(annotation?.annotationColor || 'auto');
   $('#annotationTitleInput').value = annotation?.title || '';
   $('#annotationContentInput').value = annotation?.content || '';
   $('#deleteAnnotationBtn').classList.toggle('hidden', !annotation);
@@ -2686,6 +2801,9 @@ function annotationTitleFromContent(content, type = 'note') {
 function saveAnnotationFromDialog() {
   const source = getNode(annotationDraftSourceId);
   const type = Object.hasOwn(ANNOTATION_TYPE_LABELS, $('#annotationTypeSelect').value) ? $('#annotationTypeSelect').value : 'note';
+  const annotationColor = Object.hasOwn(ANNOTATION_COLOR_STYLES, $('#annotationColorInput')?.value)
+    ? $('#annotationColorInput').value
+    : 'auto';
   const content = $('#annotationContentInput').value.trim();
   const title = $('#annotationTitleInput').value.trim() || annotationTitleFromContent(content, type);
   if (!source) return showOperationError('保存失败', '标注的来源节点已经不存在。');
@@ -2696,6 +2814,7 @@ function saveAnnotationFromDialog() {
   let annotation = annotationEditingNodeId ? getNode(annotationEditingNodeId) : null;
   if (annotation && annotation.kind === 'annotation') {
     annotation.annotationType = type;
+    annotation.annotationColor = annotationColor;
     annotation.annotationSourceNodeId = source.id;
     annotation.parentId = source.id;
     annotation.sourceNodeIds = unique([...(annotation.sourceNodeIds || []), source.id]);
@@ -2714,9 +2833,11 @@ function saveAnnotationFromDialog() {
       kind: 'annotation',
       origin: 'annotation',
       annotationType: type,
+      annotationColor,
       annotationSourceNodeId: source.id,
       sourceNodeIds: [source.id],
       annotationManualPosition: Boolean(position.manual),
+      layoutStable: true,
       parentId: source.id,
       x: clamp(Number(position.x || source.x + 40), 20, 11200),
       y: clamp(Number(position.y || source.y + nodeHeight(source) + 80), 20, 11200),
@@ -5396,9 +5517,14 @@ function minimalSelectedRoots(nodes) {
   return nodes.filter(node => !ancestorsOf(node.id).some(ancestor => ids.has(ancestor.id)));
 }
 
-function autoLayoutGraph({ persist = true } = {}) {
+function autoLayoutGraph({ persist = true, preserveExisting = true } = {}) {
   const nodes = baseVisibleNodes();
   if (!nodes.length) return;
+  const stablePositions = preserveExisting
+    ? new Map(nodes
+      .filter(node => node.layoutStable || node.annotationManualPosition)
+      .map(node => [node.id, { x: node.x, y: node.y }]))
+    : null;
   const byId = new Map(nodes.map(node => [node.id, node]));
   const primaryChildren = new Map(nodes.map(node => [node.id, []]));
   const merges = [];
@@ -5424,8 +5550,8 @@ function autoLayoutGraph({ persist = true } = {}) {
   };
   calc(root);
   const rootCenter = (root.y || 350) + nodeHeight(root)/2;
-  const place = (node, depth, centerY) => {
-    node.x = 180 + depth * COLUMN_GAP;
+  const place = (node, depth, centerY, originX = 180) => {
+    node.x = originX + depth * COLUMN_GAP;
     node.y = centerY - nodeHeight(node)/2;
     const children = primaryChildren.get(node.id) || [];
     if (!children.length) return;
@@ -5434,7 +5560,7 @@ function autoLayoutGraph({ persist = true } = {}) {
     let cursor = centerY - total/2;
     children.forEach((child, index) => {
       const h=subtreeHeight.get(child.id)||nodeHeight(child);
-      place(child, depth+1, cursor+h/2);
+      place(child, depth+1, cursor+h/2, originX);
       cursor += h + (index < children.length - 1 ? siblingGap(child, children[index + 1]) : 0);
     });
   };
@@ -5467,7 +5593,155 @@ function autoLayoutGraph({ persist = true } = {}) {
     annotationStacks.set(source.id, stack + 1);
   });
   resolveAnnotationOverlaps(annotations, nodes);
+
+  // Annotation and summary/merge descendants are independent from the main
+  // tree, but still need a real branch layout. Anchor their first column to
+  // the right of the parent and space sibling branches vertically.
+  [...merges, ...annotations].forEach(parent => {
+    const children = primaryChildren.get(parent.id) || [];
+    if (!children.length) return;
+    children.forEach(child => calc(child));
+    const total = children.reduce((sum, child) => sum + (subtreeHeight.get(child.id) || nodeHeight(child)), 0)
+      + children.slice(1).reduce((sum, child, index) => sum + siblingGap(children[index], child), 0);
+    const centerY = parent.y + nodeHeight(parent) / 2;
+    let cursor = centerY - total / 2;
+    children.forEach((child, index) => {
+      const height = subtreeHeight.get(child.id) || nodeHeight(child);
+      place(child, 1, cursor + height / 2, parent.x);
+      cursor += height + (index < children.length - 1 ? siblingGap(child, children[index + 1]) : 0);
+    });
+  });
+  const desiredPositions = new Map(nodes.map(node => [node.id, { x: node.x, y: node.y }]));
+  if (preserveExisting) {
+    applyIncrementalLayout(nodes, stablePositions, desiredPositions);
+  } else {
+    resolveAutoLayoutOverlaps(nodes);
+    nodes.forEach(node => { node.layoutStable = true; });
+  }
   if (persist) saveAndRender(); else renderCanvasOnly();
+}
+
+function applyIncrementalLayout(nodes, stablePositions, desiredPositions) {
+  const stableIds = new Set(stablePositions ? stablePositions.keys() : []);
+  stableIds.forEach(id => {
+    const node = nodes.find(item => item.id === id);
+    const position = stablePositions.get(id);
+    if (node && position) {
+      node.x = position.x;
+      node.y = position.y;
+    }
+  });
+
+  const occupied = nodes
+    .filter(node => stableIds.has(node.id) && node.status !== 'archived')
+    .map(node => ({ node, x: node.x, y: node.y }));
+  const pending = nodes
+    .filter(node => !stableIds.has(node.id) && node.status !== 'archived')
+    .sort((a, b) => depthOf(a.id) - depthOf(b.id)
+      || Number(a.layoutOrder || 0) - Number(b.layoutOrder || 0)
+      || String(a.createdAt).localeCompare(String(b.createdAt)));
+
+  for (const node of pending) {
+    const parent = node.parentId ? nodes.find(item => item.id === node.parentId) || getNode(node.parentId) : null;
+    const preferred = desiredPositions.get(node.id) || { x: node.x, y: node.y };
+    const position = findIncrementalNodePosition(node, parent, preferred, occupied);
+    node.x = position.x;
+    node.y = position.y;
+    occupied.push({ node, x: node.x, y: node.y });
+    node.layoutStable = true;
+  }
+}
+
+function findIncrementalNodePosition(node, parent, preferred, occupied) {
+  const positionedIds = new Set(occupied.map(item => item.node.id));
+  const siblings = parent
+    ? state.nodes.filter(item => positionedIds.has(item.id) && item.id !== node.id && item.parentId === parent.id && item.kind !== 'annotation' && item.status !== 'archived')
+    : [];
+  const sameGroup = node.groupId
+    ? siblings.filter(item => item.groupId && item.groupId === node.groupId)
+    : [];
+  const baseX = parent ? parent.x + COLUMN_GAP : Number(preferred.x || 180);
+  let baseY = parent
+    ? parent.y + nodeHeight(parent) / 2 - nodeHeight(node) / 2
+    : Number(preferred.y || 280);
+  if (sameGroup.length) {
+    const last = sameGroup.reduce((latest, item) => item.y > latest.y ? item : latest, sameGroup[0]);
+    baseY = last.y + nodeHeight(last) + NODE_GAP;
+  } else if (parent) {
+    baseY = Number(preferred.y || baseY);
+  }
+
+  const yStep = Math.max(NODE_MIN_H, nodeHeight(node)) + NODE_GAP;
+  const offsets = [0];
+  for (let step = 1; step <= 28; step += 1) offsets.push(step, -step);
+  const overlaps = (candidate, other) =>
+    candidate.x < other.x + NODE_W + NODE_GAP &&
+    candidate.x + NODE_W + NODE_GAP > other.x &&
+    candidate.y < other.y + nodeHeight(other) + NODE_GAP &&
+    candidate.y + nodeHeight(node) + NODE_GAP > other.y;
+
+  // Search the current column first (same level, then nearby vertical lanes).
+  // Only move to a later column if every nearby slot is occupied, so adding a
+  // node never pushes existing content out of the way.
+  for (let column = 0; column <= 14; column += 1) {
+    for (const offset of offsets) {
+      const candidate = {
+        x: clamp(baseX + column * COLUMN_GAP, 20, 11200),
+        y: clamp(baseY + offset * yStep, 20, 11200)
+      };
+      if (!occupied.some(other => overlaps(candidate, other.node))) return candidate;
+    }
+  }
+  return {
+    x: clamp(baseX + 15 * COLUMN_GAP, 20, 11200),
+    y: clamp(baseY, 20, 11200)
+  };
+}
+
+function resolveAutoLayoutOverlaps(nodes) {
+  const active = nodes.filter(node => node.status !== 'archived');
+  const ordered = [...active].sort((a, b) =>
+    a.x - b.x ||
+    a.y - b.y ||
+    depthOf(a.id) - depthOf(b.id) ||
+    String(a.createdAt).localeCompare(String(b.createdAt))
+  );
+  const placed = [];
+  const offsets = [0];
+  for (let step = 1; step <= 28; step += 1) offsets.push(step, -step);
+
+  const overlaps = (candidate, node, other) =>
+    candidate.x < other.x + NODE_W + NODE_GAP &&
+    candidate.x + NODE_W + NODE_GAP > other.x &&
+    candidate.y < other.y + nodeHeight(other) + NODE_GAP &&
+    candidate.y + nodeHeight(node) + NODE_GAP > other.y;
+
+  for (const node of ordered) {
+    const preferred = { x: node.x, y: node.y };
+    const yStep = Math.max(NODE_MIN_H, nodeHeight(node)) + GROUP_GAP;
+    let resolved = null;
+    for (let column = 0; column <= 14 && !resolved; column += 1) {
+      for (const offset of offsets) {
+        const candidate = {
+          x: clamp(preferred.x + column * COLUMN_GAP, 20, 11200),
+          y: clamp(preferred.y + offset * yStep, 20, 11200)
+        };
+        if (!placed.some(other => overlaps(candidate, node, other))) {
+          resolved = candidate;
+          break;
+        }
+      }
+    }
+    if (!resolved) {
+      resolved = {
+        x: clamp(preferred.x + 15 * COLUMN_GAP, 20, 11200),
+        y: clamp(preferred.y, 20, 11200)
+      };
+    }
+    node.x = resolved.x;
+    node.y = resolved.y;
+    placed.push(node);
+  }
 }
 
 function resolveAnnotationOverlaps(annotations, nodes) {
@@ -5710,7 +5984,10 @@ function buildJsonCanvasExport() {
       y: Math.round(Number(node.y || 0)),
       width: 360,
       height: Math.max(220, Math.min(720, 190 + (node.messages || []).length * 72)),
-      text: nodeExportText(node)
+      text: nodeExportText(node),
+      ...(node.kind === 'annotation' && ANNOTATION_COLOR_STYLES[node.annotationColor]?.swatch
+        ? { color: ANNOTATION_COLOR_STYLES[node.annotationColor].swatch }
+        : {})
     });
   }
   for (const edge of state.edges || []) {

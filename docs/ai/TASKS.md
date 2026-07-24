@@ -7,6 +7,13 @@
 - [x] Gate 3: pure, local API and Chromium evidence for language/encoding plus full workflow regression
 - [x] Gate 4: documentation synchronization, two complete worktree suites, sanitized packaging, ZIP integrity and clean-extract regression
 
+## Completed after v12.5
+
+- [x] Annotation presentation, color presets and source-content action hierarchy
+- [x] Multi-select drag movement for canvas nodes
+- [x] Incremental collision-aware placement that preserves existing nodes
+- [x] Branch placement for annotation and summary/merge nodes, including spaced siblings
+
 ## Possible future work
 
 - [ ] Move from runtime source-string dictionaries to stable message IDs if the UI grows substantially

@@ -873,6 +873,50 @@ dialog { color: var(--text); }
 .source-content-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .source-content-head span { color: #c4b8ef; font-size: 10px; font-weight: 740; letter-spacing: .04em; }
 .source-content-head em { color: #6f7480; font-size: 9px; font-style: normal; }
+.source-content-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-top: 16px;
+  padding-top: 13px;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+.source-content-actions button {
+  min-height: 31px;
+  padding: 0 11px;
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: 8px;
+  color: #aeb2bc;
+  background: rgba(255,255,255,.035);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1;
+  transition: border-color .16s ease, color .16s ease, background .16s ease, transform .16s ease;
+}
+.source-content-actions button:hover,
+.source-content-actions button:focus-visible {
+  border-color: rgba(255,255,255,.22);
+  color: #f2f2f4;
+  background: rgba(255,255,255,.085);
+}
+.source-content-actions button:active { transform: translateY(1px); }
+.source-content-actions .source-action-primary {
+  border-color: rgba(169,140,255,.28);
+  color: #d9d0fa;
+  background: rgba(169,140,255,.105);
+}
+.source-content-actions .source-action-primary:hover,
+.source-content-actions .source-action-primary:focus-visible {
+  border-color: rgba(195,178,255,.48);
+  color: #f5f1ff;
+  background: rgba(169,140,255,.17);
+}
+.source-content-actions .source-action-edit {
+  color: #d1d4dc;
+  background: rgba(255,255,255,.065);
+}
 .source-quote { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
 .source-quote summary { color: #797e88; cursor: pointer; font-size: 9px; }
 .source-quote blockquote { margin: 9px 0 0; padding: 10px 12px; border-left: 2px solid #585d68; color: #8f949e; background: rgba(255,255,255,.025); font-size: 10px; line-height: 1.65; white-space: pre-wrap; }
@@ -3072,6 +3116,45 @@ body.keyboard-navigation [contenteditable="true"]:focus-visible {
 .node.kind-annotation.annotation-question .node-kind { color: #a7d4e5; }
 .node.kind-annotation.annotation-risk .node-kind { color: #e2abb2; }
 .node.kind-annotation.annotation-action .node-kind { color: #a4d8c2; }
+.node-annotation-state,
+.annotation-header-state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 3px 7px;
+  border: 1px solid rgba(205,188,249,.24);
+  border-radius: 6px;
+  color: #a9a1bb;
+  background: rgba(205,188,249,.065);
+  font-size: 9px;
+  font-weight: 680;
+  white-space: nowrap;
+}
+.node-annotation-state::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: #b7a6ef;
+}
+.annotation-header-state {
+  height: 31px;
+  padding-inline: 10px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+.node.kind-annotation.annotation-custom {
+  border-color: var(--annotation-border);
+  background: linear-gradient(160deg, var(--annotation-fill), rgba(24,25,30,.96) 66%);
+}
+.node.kind-annotation.annotation-custom::before { background: var(--annotation-accent); }
+.node.kind-annotation.annotation-custom .node-kind { color: var(--annotation-label); }
+.node.kind-annotation.annotation-custom .node-annotation-state {
+  border-color: color-mix(in srgb, var(--annotation-accent) 42%, transparent);
+  color: var(--annotation-label);
+  background: color-mix(in srgb, var(--annotation-accent) 12%, transparent);
+}
 .node.kind-annotation h3 { color: #eef0f5; }
 .node.kind-annotation p { -webkit-line-clamp: 3; color: #aeb4c1; }
 .node.kind-annotation .node-provider { color: #838b9d; }
@@ -3111,6 +3194,11 @@ body.keyboard-navigation [contenteditable="true"]:focus-visible {
   border-color: rgba(205,188,249,.28);
   background: linear-gradient(180deg, rgba(190,169,245,.065), rgba(255,255,255,.018));
 }
+.annotation-content-card.annotation-custom {
+  border-color: var(--annotation-border);
+  background: linear-gradient(180deg, var(--annotation-fill), rgba(255,255,255,.018));
+}
+.annotation-content-card.annotation-custom .source-content-head > span { color: var(--annotation-label); }
 .annotation-content-card .source-content-head > span { color: #bdc9e2; }
 .annotation-content-card .source-content-actions { flex-wrap: wrap; }
 .context-chip.annotation-local,
@@ -3155,11 +3243,69 @@ body.keyboard-navigation [contenteditable="true"]:focus-visible {
   background: #0f1014;
   line-height: 1.7;
 }
+.annotation-color-field {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.annotation-color-field legend {
+  margin-bottom: 10px;
+  color: #a2a6af;
+  font-size: 13px;
+  font-weight: 620;
+}
+.annotation-color-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.annotation-color-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 10px 0 8px;
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: 9px;
+  color: #969ba6;
+  background: rgba(255,255,255,.025);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 620;
+  transition: border-color .16s ease, color .16s ease, background .16s ease, transform .16s ease;
+}
+.annotation-color-swatch:hover,
+.annotation-color-swatch:focus-visible {
+  border-color: rgba(255,255,255,.24);
+  color: #ececf0;
+  background: rgba(255,255,255,.07);
+}
+.annotation-color-swatch:active { transform: translateY(1px); }
+.annotation-color-swatch.selected {
+  border-color: rgba(217,204,255,.66);
+  color: #f0edf8;
+  background: rgba(169,140,255,.11);
+  box-shadow: 0 0 0 2px rgba(169,140,255,.10);
+}
+.annotation-color-dot {
+  width: 16px;
+  height: 16px;
+  border: 1px solid rgba(255,255,255,.25);
+  border-radius: 5px;
+  background: var(--swatch-color);
+  box-shadow: inset 0 0 0 3px rgba(255,255,255,.08);
+}
+.annotation-color-dot.is-auto {
+  background: conic-gradient(from 45deg, #a98cff, #66be9c, #d8b45b, #da7d8b, #a98cff);
+}
 .modal-action-spacer { flex: 1 1 auto; }
 
 @media (max-width: 760px) {
   .annotation-form-grid { grid-template-columns: 1fr; padding: 24px 22px; }
   .annotation-form-grid .annotation-wide { grid-column: auto; }
+  .annotation-color-field { grid-column: auto; }
   .node-quick-actions { right: -15px; grid-template-columns: 30px; gap: 5px; }
   .node-quick-actions > button { width: 30px; height: 30px; min-width: 30px; }
 }

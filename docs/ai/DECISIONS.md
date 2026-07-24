@@ -10,3 +10,12 @@
 - Repair occurs at both server and browser boundaries. Server repair owns disk/upstream integrity; browser repair protects compatibility with older/mocked responses and passes transport repair counts to project migration through a non-enumerable Symbol.
 - Static HTML, JavaScript, JSON and NDJSON responses must declare UTF-8 explicitly.
 - Existing v12.4 decisions remain in force: exact/unknown selection provenance, independent top modules, calm pointer focus, application dialogs, annotation semantics, manual annotation positioning and persisted branch folding.
+- Incremental canvas placement preserves existing node coordinates. New nodes search the
+  current parent column first (same level, then nearby vertical lanes), then move to a
+  later column only when needed; existing nodes are never displaced automatically.
+- Explicit “自动排布” is the opt-in full-canvas reflow action. Annotation and
+  summary/merge nodes are detached layout parents whose child branches begin one
+  column to the right and use sibling spacing.
+- Explicit auto-layout finishes with a global collision pass across all visible
+  nodes, including annotation and merge descendants; incremental placement does
+  not run this pass so existing coordinates remain stable.

@@ -668,8 +668,14 @@ def main():
         assert page.locator('[data-decompose-source-selection]').count() == 1
         assert page.locator('[data-promote-source-selection]').count() == 1
         assert "不计入主分支完成度" in page.locator(".node-context-row").inner_text()
-        page.select_option("#nodeStatusSelect", "resolved")
-        project = wait_project(page, f"p=>p.nodes.find(n=>n.id==='{annotation['id']}').status==='resolved'")
+        assert page.locator("#nodeStatusSelect").count() == 0
+        assert page.locator("#nodeConfidenceSelect").count() == 0
+        assert page.locator(".node.kind-annotation .node-annotation-state").inner_text() == "本地标注"
+        page.locator(f'[data-edit-annotation="{annotation["id"]}"]').evaluate("el=>el.click()")
+        page.wait_for_selector("#annotationDialog[open]")
+        page.locator('[data-annotation-color="mint"]').click()
+        page.click('#annotationForm button[type="submit"]')
+        project = wait_project(page, f"p=>p.nodes.find(n=>n.id==='{annotation['id']}').annotationColor==='mint'")
         assert next(node for node in project["nodes"] if node["id"] == source_action_node["id"])["status"] == source_status_before_annotation
         page.locator(f'[data-edit-annotation="{annotation["id"]}"]').evaluate("el=>el.click()")
         page.wait_for_selector("#annotationDialog[open]")
@@ -807,6 +813,8 @@ def main():
         page.wait_for_timeout(100)
         assert abs(center_y(page, parent_section["id"]) - sum(center_y(page, child["id"]) for child in siblings) / 2) < 4
         no_overlap(page)
+        stable_parent_center = center_y(page, parent_section["id"])
+        stable_first_child_center = center_y(page, siblings[0]["id"])
 
         for child in siblings:
             select_node(page, child["id"])
@@ -838,6 +846,29 @@ def main():
         assert decision["contextSnapshotId"] == merge_node["contextSnapshotId"]
         assert any(record.get("purpose") == "merge" and record.get("nodeId") == merge_node["id"] for record in project["generationRecords"])
         assert any(snapshot.get("id") == merge_node["contextSnapshotId"] and snapshot.get("immutable") for snapshot in project["contextSnapshots"])
+
+        # Incremental placement preserves existing nodes, and a summary node
+        # receives parallel branches in the next open right-side slots.
+        select_node(page, parent_section["id"])
+        assert abs(center_y(page, parent_section["id"]) - stable_parent_center) < 4
+        assert abs(center_y(page, siblings[0]["id"]) - stable_first_child_center) < 4
+        summary_question = "请从汇总结论补充一个执行例子。"
+        for count in (1, 2):
+            select_node(page, merge_node["id"])
+            page.click(f'[data-node-branch="{merge_node["id"]}"]')
+            page.wait_for_selector("#branchComposerDialog[open]")
+            page.fill("#branchMessageDraft", summary_question)
+            page.click("#confirmBranchBtn")
+            project = wait_project(page, f"p=>p.nodes.filter(n=>n.parentId==='{merge_node['id']}'&&n.question==='{summary_question}'&&n.messages.length>=2&&n.messages.at(-1)?.streaming!==true).length>={count}")
+        summary_siblings = [node for node in project["nodes"] if node.get("parentId") == merge_node["id"] and node.get("question") == summary_question]
+        assert len(summary_siblings) == 2
+        assert all(node["x"] > merge_node["x"] for node in summary_siblings)
+        assert abs(summary_siblings[0]["x"] - summary_siblings[1]["x"]) < 4
+        assert abs(summary_siblings[0]["y"] - summary_siblings[1]["y"]) > 20
+        no_overlap(page)
+        page.click("#autoLayoutBtn")
+        page.wait_for_timeout(100)
+        no_overlap(page)
 
         leaf = siblings[0]
         checkpoint("archive gate start")

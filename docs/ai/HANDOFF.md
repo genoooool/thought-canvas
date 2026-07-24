@@ -4,6 +4,15 @@ Current release: Thought Canvas v12.5.
 
 ## Completed implementation
 
+- Canvas annotation modules now show a local-annotation state instead of ordinary
+  work/confidence badges, support persisted background-color presets, and use
+  grouped source-content actions.
+- Canvas selection dragging supports moving multiple selected nodes together.
+- Incremental node placement keeps existing coordinates stable, finds the next
+  open slot for new parallel nodes, and lays out descendants of annotation and
+  summary/merge nodes to the right without overlap.
+- Explicit auto-layout now runs a final whole-canvas collision pass after the
+  tree, annotation and merge-specific placement passes.
 - Settings → General supports Simplified Chinese, English and Japanese with immediate preview and local persistence.
 - Static/dynamic UI, placeholders, accessibility labels, counts, dates and new-request response language are localized.
 - Project/user/model content is isolated from UI translation, including content equal to known UI terms.
@@ -16,6 +25,11 @@ Current release: Thought Canvas v12.5.
 ## Verification
 
 - Complete worktree `npm test` passed twice; one captured run was 36.74 seconds.
+- Focused `npm run check && npm run test:node` passed after the canvas layout changes.
+- Auto-layout regression coverage now checks for overlap both before and after
+  adding summary-node branches.
+- Local browser smoke verification confirmed the existing summary node and its
+  branch render in separate right-side columns without console warnings.
 - Sanitized staging and clean ZIP extraction each passed `npm run verify:package` with 59 files.
 - ZIP integrity passed `unzip -t`.
 - Clean extraction passed complete `npm test` in about 37 seconds.

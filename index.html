@@ -450,6 +450,19 @@
           <option value="risk">风险</option>
           <option value="action">行动</option>
         </select></label>
+        <fieldset class="annotation-color-field">
+          <legend>背景色</legend>
+          <input type="hidden" id="annotationColorInput" value="auto" />
+          <div class="annotation-color-options" role="radiogroup" aria-label="标注背景色">
+            <button type="button" class="annotation-color-swatch selected" data-annotation-color="auto" aria-pressed="true" title="跟随类型"><span class="annotation-color-dot is-auto"></span><span>跟随类型</span></button>
+            <button type="button" class="annotation-color-swatch" data-annotation-color="violet" aria-pressed="false" title="雾紫"><span class="annotation-color-dot" style="--swatch-color:#a98cff"></span><span>雾紫</span></button>
+            <button type="button" class="annotation-color-swatch" data-annotation-color="slate" aria-pressed="false" title="石板"><span class="annotation-color-dot" style="--swatch-color:#839ab9"></span><span>石板</span></button>
+            <button type="button" class="annotation-color-swatch" data-annotation-color="blue" aria-pressed="false" title="晴蓝"><span class="annotation-color-dot" style="--swatch-color:#6299da"></span><span>晴蓝</span></button>
+            <button type="button" class="annotation-color-swatch" data-annotation-color="mint" aria-pressed="false" title="薄荷"><span class="annotation-color-dot" style="--swatch-color:#66be9c"></span><span>薄荷</span></button>
+            <button type="button" class="annotation-color-swatch" data-annotation-color="amber" aria-pressed="false" title="琥珀"><span class="annotation-color-dot" style="--swatch-color:#d8b45b"></span><span>琥珀</span></button>
+            <button type="button" class="annotation-color-swatch" data-annotation-color="rose" aria-pressed="false" title="玫瑰"><span class="annotation-color-dot" style="--swatch-color:#da7d8b"></span><span>玫瑰</span></button>
+          </div>
+        </fieldset>
         <label class="annotation-wide"><span>标题</span><input id="annotationTitleInput" maxlength="120" placeholder="例如：这里需要验证用户成本" /></label>
         <label class="annotation-wide"><span>内容</span><textarea id="annotationContentInput" rows="8" placeholder="记录批注、补充说明、风险、下一步或任何不想混进主对话的内容。"></textarea></label>
       </div>
