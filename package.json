@@ -1,8 +1,26 @@
 {
-  "name": "thought-canvas-mvp-v12-5",
+  "name": "thought-canvas",
   "version": "1.2.5",
+  "description": "Local-first branching AI conversation canvas with visual reasoning, Codex OAuth, Markdown export, and Obsidian knowledge workflows.",
   "private": true,
   "type": "module",
+  "homepage": "https://github.com/genoooool/thought-canvas#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/genoooool/thought-canvas.git"
+  },
+  "keywords": [
+    "ai",
+    "branching-chat",
+    "codex",
+    "knowledge-management",
+    "local-first",
+    "markdown",
+    "mind-map",
+    "obsidian",
+    "reasoning",
+    "visual-ai"
+  ],
   "scripts": {
     "start": "node server.mjs",
     "check": "node --check app.js && node --check selection-utils.js && node --check text-encoding.js && node --check i18n.js && node --check server.mjs && node --check providers.js && node --check provider-capabilities.js && node --check codex-app-server.mjs && node --check thinking-core.js",
