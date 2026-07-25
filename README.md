@@ -227,7 +227,7 @@ docs/                      Design, acceptance, and research documents
 
 ## Version
 
-The current application version is **v12.5**, represented as `1.2.5` in `package.json`.
+The current application version is **v12.6**, represented as `1.2.6` in `package.json`.
 
 ## License
 

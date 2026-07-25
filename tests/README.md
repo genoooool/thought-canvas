@@ -1,4 +1,4 @@
-# Tests — Thought Canvas v12.5
+# Tests — Thought Canvas v12.6
 
 ## 全量
 
@@ -82,7 +82,7 @@ npm run test:codex
 
 ### `browser_e2e.py`
 
-加载真实 HTML/CSS/JS 和 Chromium，并使用与 v12.5 路由同构的页面内 API。覆盖：
+加载真实 HTML/CSS/JS 和 Chromium，并使用与 v12.6 路由同构的页面内 API。覆盖：
 
 - 中/英/日即时切换、保存、重载和用户内容隔离；
 - 浏览器侧历史乱码恢复、英文修复提示和保存迁移元数据；
@@ -119,5 +119,5 @@ npm test
 ZIP 还需通过：
 
 ```bash
-unzip -t thought-canvas-mvp-v12.5-language-encoding-complete-verified.zip
+unzip -t thought-canvas-mvp-v1.2.6-layout-fix.zip
 ```

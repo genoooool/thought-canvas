@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.6 — deterministic semantic-column layout
+
+### 自动排布
+
+- 新增无 DOM 的 `layout-engine.js`，以逐深度上下轮廓紧凑放置不同高度的兄弟子树。
+- `decomposition:*` 组改为父节点右侧同列竖排；每个模块自己的后代严格从实际父节点右侧一列继续。
+- 唯一子节点保持水平中心线，多子节点以首尾直接子节点中心对齐父节点。
+- 主树、孤立树、merge/summary 和 annotation 使用完整子树单元纵向避让，不再按碰撞次数新增横向空列。
+- 增量排布保持无关稳定分支不动；手动标注坐标在完整排布中保持不变。
+
+### 验证
+
+- 新增六组纯布局 fixture，覆盖混合高度、三层链、嵌套不均匀分支、精确幂等、增量避让、merge 与 annotation。
+- Chromium E2E 改为检查项目世界坐标，并覆盖至少 8 个顶层模块、递归拆解、汇总分支、真实 DOM 无重叠和连续两次自动排布坐标一致。
+
 ## 1.2.5 — interface languages and UTF-8 migration
 
 ### 多语言

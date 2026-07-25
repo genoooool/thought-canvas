@@ -7,11 +7,11 @@ const root = path.resolve(process.argv[2] || process.cwd());
 const errors = [];
 const files = [];
 const required = [
-  'package.json', 'server.mjs', 'app.js', 'selection-utils.js', 'text-encoding.js', 'i18n.js', 'thinking-core.js', 'providers.js',
+  'package.json', 'server.mjs', 'app.js', 'layout-engine.js', 'selection-utils.js', 'text-encoding.js', 'i18n.js', 'thinking-core.js', 'providers.js',
   'provider-capabilities.js', 'codex-app-server.mjs',
   'index.html', 'styles.css', 'README.md', 'START_HERE.md', 'CHANGELOG.md',
   'data/projects/.gitkeep', 'data/backups/.gitkeep', 'docs/GATES.md', 'docs/TEST_REPORT.md', 'docs/ARCHITECTURE.md',
-  'tests/selection-utils-test.mjs', 'tests/text-encoding-test.mjs', 'tests/i18n-test.mjs', 'tests/provider-capabilities-test.mjs',
+  'tests/layout-engine-test.mjs', 'tests/selection-utils-test.mjs', 'tests/text-encoding-test.mjs', 'tests/i18n-test.mjs', 'tests/provider-capabilities-test.mjs',
   'tests/local-api-test.mjs', 'tests/browser_e2e.py', 'tests/codex-permissions-test.mjs', 'tests/codex-bridge-test.mjs',
   'tests/fake-codex-app-server.mjs'
 ];

@@ -1,4 +1,4 @@
-# Thought Canvas v12.5 技术架构
+# Thought Canvas v12.6 技术架构
 
 ## 1. 运行形态
 
@@ -8,6 +8,7 @@ Thought Canvas 是依赖较少的本地网页应用，前端使用原生 HTML/CS
 - `index.html`：首页、工作区、顶部工具栏、侧栏与设置/OAuth/上下文/比较/版本/导出对话框；
 - `styles.css`：画布、独立顶部模块、统一弹窗、标注节点、折叠状态、菜单和焦点视觉；
 - `app.js`：客户端状态机、画布渲染、选区保留、标注与折叠、上下文构建、模型/思考选择器、流消费、供应商连接和持久化编排；
+- `layout-engine.js`：无 DOM 的确定性轮廓树布局、语义列坐标、完整单元纵向避让和布局不变量检查；
 - `selection-utils.js`：把渲染后的 Markdown 可见选区映射回原始 Markdown，并提供范围不确定时的保守回退；
 - `i18n.js`：中/英/日 UI 词典、动态模式、DOM 增量本地化、locale 与模型回答语言指令；
 - `text-encoding.js`：识别 UTF-8 被 Windows-1252 误解码的文本，执行保守单次/双次修复与深层对象迁移；

@@ -10,7 +10,7 @@ import { repairUtf8Mojibake, repairUtf8MojibakeDeep } from './text-encoding.js';
 const root = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 8787);
 const listenHost = process.env.HOST || '127.0.0.1';
-const APP_VERSION = '1.2.5';
+const APP_VERSION = '1.2.6';
 const SESSION_HEADER = 'x-thought-canvas-session';
 const REQUEST_ENCODING_REPAIR = Symbol('requestEncodingRepair');
 const runtimeSessionToken = randomBytes(32).toString('base64url');
@@ -91,7 +91,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(port, listenHost, () => console.log(`Thought Canvas v12.5: http://${listenHost}:${port}`));
+server.listen(port, listenHost, () => console.log(`Thought Canvas v12.6: http://${listenHost}:${port}`));
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.once(signal, async () => {
@@ -751,7 +751,7 @@ async function handleAnalyzeStream(req, res) {
         String(body.prompt),
         '请像成熟的思考伙伴一样直接回答用户，不要输出 JSON、XML 或内部字段。',
         '使用清晰 Markdown：先给核心判断，再分层讲解；必要时使用小标题、列表、引用、表格或代码块。',
-        '不要自动拆成画布节点。用户阅读完整回答后会手动决定是否拆解。',
+        '不要在回答正文中输出画布节点；是否拆解由界面根据用户的拆解意图处理。',
         outputLanguageInstruction(body.uiLanguage)
       ].join('\n\n');
       answer = await streamGeneratedText(config, answerPrompt, delta => {
@@ -800,7 +800,7 @@ async function handleAnalyze(req, res) {
       String(body.prompt),
       '请像成熟的思考伙伴一样直接回答用户，不要输出 JSON、XML 或内部字段。',
       '使用清晰 Markdown：先给核心判断，再分层讲解；必要时使用小标题、列表、引用、表格或代码块。',
-      '不要自动拆成画布节点。用户阅读完整回答后会手动决定是否拆解。',
+      '不要在回答正文中输出画布节点；是否拆解由界面根据用户的拆解意图处理。',
       outputLanguageInstruction(body.uiLanguage)
     ].join('\n\n');
     const rawAnswer = await generateText({ ...config, prompt: answerPrompt });

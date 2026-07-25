@@ -7,12 +7,17 @@
 - [x] Gate 3: pure, local API and Chromium evidence for language/encoding plus full workflow regression
 - [x] Gate 4: documentation synchronization, two complete worktree suites, sanitized packaging, ZIP integrity and clean-extract regression
 
-## Completed after v12.5
+## Completed in v12.6
 
 - [x] Annotation presentation, color presets and source-content action hierarchy
 - [x] Multi-select drag movement for canvas nodes
-- [x] Incremental collision-aware placement that preserves existing nodes
+- [x] Incremental whole-unit vertical avoidance that preserves unrelated stable nodes
 - [x] Branch placement for annotation and summary/merge nodes, including spaced siblings
+- [x] Pure deterministic contour layout with fixed parent-relative semantic columns
+- [x] Auto-layout keeps ordered decomposition modules in one vertical column
+- [x] Complete subtree avoidance for merge/summary/annotation roots without extra collision columns
+- [x] Layout invariants and dense fixtures for no overlap, no foldback, idempotence and manual annotation stability
+- [x] Intent-aware answer decomposition: explicit “帮我拆解” requests auto-create content nodes, while fuzzy requests ask for confirmation
 
 ## Possible future work
 

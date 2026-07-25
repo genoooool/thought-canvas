@@ -1,7 +1,7 @@
-"""Browser acceptance gates for Thought Canvas v12.5.
+"""Browser acceptance gates for Thought Canvas v12.6.
 
 The execution environment blocks browser access to localhost. This suite therefore
-runs the real UI against an in-page API implementation with the same v12.5 routes.
+runs the real UI against an in-page API implementation with the same v12.6 routes.
 The Node/local-file integration is covered separately by local-api-test.mjs.
 """
 from pathlib import Path
@@ -32,7 +32,7 @@ const browserDefaultProvider={
     {id:'deepseek-v4-pro',label:'DeepSeek V4 Pro',reasoningEfforts:['none','high','max'],supportedReasoningEfforts:['none','high','max'],defaultReasoningEffort:'high'}
   ],testModel:'deepseek-v4-flash',lastModelSyncAt:'2026-07-23T10:00:00.000Z'
 };
-const browserDefaultSettings={version:'1.2.5',uiLanguage:'zh-CN',providers:[browserDefaultProvider],defaultProvider:'deepseek',defaultModel:'deepseek-v4-flash',defaultReasoningEffort:'high',mergeProvider:'deepseek',mergeModel:'deepseek-v4-flash',mergeReasoningEffort:'high'};
+const browserDefaultSettings={version:'1.2.6',uiLanguage:'zh-CN',providers:[browserDefaultProvider],defaultProvider:'deepseek',defaultModel:'deepseek-v4-flash',defaultReasoningEffort:'high',mergeProvider:'deepseek',mergeModel:'deepseek-v4-flash',mergeReasoningEffort:'high'};
 window.__apiState = window.__apiSeed || {settings:browserDefaultSettings,secretStatus:{deepseek:true},projects:{},backups:{},activeProjectId:"",requests:[]};
 window.__apiState.requests=window.__apiState.requests||[];
 window.__apiState.backups=window.__apiState.backups||{};
@@ -92,9 +92,11 @@ const streamEvents=(text,{meta=null,size=48}={})=>{
   events.push({type:'done',textLength:text.length});
   return events;
 };
-const initialAnswer='## 核心判断\n\n> **核心区别**\n> 普通人卖内容，高维玩家控制客户、数据与交易。\n\n## 1. 自营内容与交易\n\n使用低成本内容能力运营账号、联盟带货或自营商品。优势是启动直接，风险是同时承担选品、流量和转化。\n\n## 2. 产品化与基础设施\n\n把稳定的视频工作流包装为服务、SaaS 或 API。价值来自替客户降低组织生产的成本，而不是只提供一次生成。\n\n## 3. 行业工作流与结果交付\n\n选择一个行业，连接商品资料、品牌规则、发布、投放和成交数据，按持续结果收费。\n\n## 4. 数据、渠道与责任\n\n更长期的壁垒来自真实业务数据、客户入口、授权资产和对结果负责的能力。\n\n```js\nconsole.log("copy me")\n```';
+const initialAnswer='## 核心判断\n\n> **核心区别**\n> 普通人卖内容，高维玩家控制客户、数据与交易。\n\n## 1. 自营内容与交易\n\n使用低成本内容能力运营账号、联盟带货或自营商品。优势是启动直接，风险是同时承担选品、流量和转化。\n\n## 2. 产品化与基础设施\n\n把稳定的视频工作流包装为服务、SaaS 或 API。价值来自替客户降低组织生产的成本，而不是只提供一次生成。\n\n## 3. 行业工作流与结果交付\n\n选择一个行业，连接商品资料、品牌规则、发布、投放和成交数据，按持续结果收费。\n\n## 4. 数据、渠道与责任\n\n更长期的壁垒来自真实业务数据、客户入口、授权资产和对结果负责的能力。\n\n## 5. 客户与预算验证\n\n先核对高频需求、决策人和真实预算，避免只依据口头兴趣判断市场。\n\n## 6. 交付与复购机制\n\n把交付过程拆成可重复步骤，并用复购、续费和结果指标验证持续价值。\n\n## 7. 风险与下一步\n\n保留尚未验证的假设，明确最小实验、失败边界和下一轮证据收集动作。\n\n```js\nconsole.log("copy me")\n```';
 const generatedReply=prompt=>{
   prompt=String(prompt||'');
+  if(prompt.includes('应该分几步分析'))return '## 识别问题\n\n先把问题拆成可以独立理解的分析面。\n\n## 比较选项\n\n再比较不同选项的证据、风险和适用边界。\n\n## 形成结论\n\n最后把判断收束成下一步可验证的行动。';
+  if(prompt.includes('帮我拆解'))return '## 商品判断\n\n先确认商品是否值得卖，并区分硬门槛、辅助信号和待验证项。\n\n## 达人判断\n\n再核验达人独立性、资源接近程度、公开历史与长期稳定性。\n\n## 视频判断\n\n最后检查视频机制、成交路径和跨样本重复性，决定是否进入测试。';
   if(prompt.includes('继续完成上一条被停止的回答'))return '## 续写完成\n\n这里承接已有部分，补齐剩余判断、风险和下一步，不重复开头。';
   if(prompt.includes('停止测试'))return '## 可中止的长回答\n\n'+Array.from({length:48},(_,i)=>`### 分段 ${i+1}\n\n这是第 ${i+1} 段增量内容，用于验证停止生成后保留部分输出，并能从同一条消息继续。`).join('\n\n');
   if(prompt.includes('北极星17')&&prompt.includes('项目代号是什么'))return '## 直接回答\n\n项目代号是 **北极星17**。\n\n这个事实来自父节点上下文。\n\n'+Array.from({length:22},(_,i)=>`### 补充 ${i+1}\n\n这是用于验证分支面板从顶部开始、正文随面板宽度自动换行的说明段落。`).join('\n\n');
@@ -107,7 +109,7 @@ window.fetch=async(url,opts={})=>{
   const sessionHeader=new Headers(opts.headers||{}).get('x-thought-canvas-session')||'';
   if(['POST','PUT','PATCH','DELETE'].includes(method)&&sessionHeader!==SESSION_TOKEN)return ok({error:'本地运行会话已失效，请刷新页面后重试。',code:'SESSION_REQUIRED'},401);
   if(['/api/analyze','/api/generate','/api/analyze-stream','/api/generate-stream','/api/synthesize','/api/provider-secret'].includes(path))window.__apiState.requests.push({path,body:clone(body),sessionHeader,at:now()});
-  if(path==='/api/health')return ok({ok:true,version:'1.2.5'});
+  if(path==='/api/health')return ok({ok:true,version:'1.2.6'});
   if(path==='/api/local-config'&&method==='GET')return ok({settings:clone(window.__apiState.settings),secretStatus:clone(window.__apiState.secretStatus),storage:{envFile:'.env.local',settingsFile:'data/settings.local.json'}});
   if(path==='/api/local-config'&&method==='POST'){window.__apiState.settings=clone(body.settings||{});return ok({ok:true,settings:clone(window.__apiState.settings)});}
   if(path==='/api/provider-secret'&&method==='POST'){if(!body.clear)return ok({error:'API Key 只能通过连接并同步模型验证成功后保存。'},400);delete window.__apiState.secretStatus[body.providerId];return ok({ok:true,providerId:body.providerId,hasKey:false});}
@@ -124,7 +126,7 @@ window.fetch=async(url,opts={})=>{
     if(!found)return ok({error:'备份不存在或已被清理。'},404);
     const current=window.__apiState.projects[m[1]];
     if(current)items.unshift({id:`${m[1]}.restore-${Date.now()}.json`,createdAt:now(),project:clone(current)});
-    const restored=clone(found.project);restored.projectId=m[1];restored.version='1.2.5';restored.projectUpdatedAt=now();restored.restoredFromBackup=found.id;restored.restoredAt=restored.projectUpdatedAt;
+    const restored=clone(found.project);restored.projectId=m[1];restored.version='1.2.6';restored.projectUpdatedAt=now();restored.restoredFromBackup=found.id;restored.restoredAt=restored.projectUpdatedAt;
     window.__apiState.projects[m[1]]=restored;
     return ok({ok:true,project:clone(restored),index:indexEntry(restored),restoredFrom:found.id});
   }
@@ -133,7 +135,7 @@ window.fetch=async(url,opts={})=>{
   if(m&&method==='POST'){
     const existing=window.__apiState.projects[m[1]];
     if(existing&&body.createBackup!==false){const items=window.__apiState.backups[m[1]]||(window.__apiState.backups[m[1]]=[]);if(!items.length)items.push({id:`${m[1]}.${Date.now()}-${Math.random().toString(36).slice(2,6)}.json`,createdAt:now(),project:clone(existing)});}
-    const p=clone(body.project||body);p.projectId=m[1];p.version='1.2.5';window.__apiState.projects[m[1]]=p;return ok({ok:true,project:indexEntry(p),storageFile:`data/projects/${m[1]}.json`});
+    const p=clone(body.project||body);p.projectId=m[1];p.version='1.2.6';window.__apiState.projects[m[1]]=p;return ok({ok:true,project:indexEntry(p),storageFile:`data/projects/${m[1]}.json`});
   }
   if(m&&method==='DELETE'){delete window.__apiState.projects[m[1]];delete window.__apiState.backups[m[1]];if(window.__apiState.activeProjectId===m[1])window.__apiState.activeProjectId='';return ok({ok:true});}
   if(path==='/api/analyze'&&method==='POST')return ok({goalSuggestion:'验证 AI 视频商业化路径并形成可执行判断',answer:initialAnswer,manualDecompose:true});
@@ -237,6 +239,8 @@ def load_app(page, seed=None):
     selection_utils = "(function(){\n" + selection_utils + "\nwindow.__selectionUtils={resolveMarkdownSelection,normalizeLooseSelection,buildMarkdownVisibleIndex,allIndexes};\n})();"
     text_encoding = (ROOT / "text-encoding.js").read_text().replace("export const ", "const ").replace("export function ", "function ")
     text_encoding = "(function(){\n" + text_encoding + "\nwindow.__textEncoding={inspectUtf8Mojibake,repairUtf8Mojibake,hasLikelyUtf8Mojibake,repairUtf8MojibakeDeep};\n})();"
+    layout_engine = (ROOT / "layout-engine.js").read_text().replace("export const ", "const ").replace("export function ", "function ")
+    layout_engine = "(function(){\n" + layout_engine + "\nwindow.__layoutEngine={NODE_W,NODE_MIN_H,NODE_MAX_H,COLUMN_GAP,NODE_GAP,GROUP_GAP,computeBounds,layoutChildGroup,layoutTree,nearestVerticalTranslation,stableLayoutComparator,translatePositions,validateLayoutInvariants};\n})();"
     i18n = (ROOT / "i18n.js").read_text().replace("export const ", "const ").replace("export function ", "function ")
     i18n = "(function(){\n" + i18n + "\nwindow.__i18n={DEFAULT_UI_LANGUAGE,UI_LANGUAGE_OPTIONS,normalizeUiLanguage,getUiLanguage,localeForIntl,t,hasTranslation,setUiLanguage,startUiLocalization,stopUiLocalization,localizeUi,responseLanguageInstruction};\n})();"
     app = (ROOT / "app.js").read_text().replace(
@@ -264,6 +268,12 @@ def load_app(page, seed=None):
         "const { repairUtf8Mojibake, repairUtf8MojibakeDeep } = window.__textEncoding;",
     )
     app = re.sub(
+        r"import\s*\{[\s\S]*?\}\s*from './layout-engine\.js';",
+        "const { NODE_W, NODE_MIN_H, NODE_MAX_H, COLUMN_GAP, NODE_GAP, GROUP_GAP, computeBounds, layoutChildGroup, layoutTree, nearestVerticalTranslation, stableLayoutComparator, translatePositions, validateLayoutInvariants } = window.__layoutEngine;",
+        app,
+        count=1,
+    )
+    app = re.sub(
         r"import\s*\{[\s\S]*?\}\s*from './i18n\.js';",
         "const { DEFAULT_UI_LANGUAGE, UI_LANGUAGE_OPTIONS, normalizeUiLanguage, setUiLanguage, startUiLocalization, localizeUi, localeForIntl, t, responseLanguageInstruction } = window.__i18n;",
         app,
@@ -285,6 +295,7 @@ def load_app(page, seed=None):
     page.add_script_tag(content=thinking)
     page.add_script_tag(content=selection_utils)
     page.add_script_tag(content=text_encoding)
+    page.add_script_tag(content=layout_engine)
     page.add_script_tag(content=i18n)
     page.add_script_tag(content=app)
     expected = "#workspace:not(.hidden)" if seed and seed.get("activeProjectId") else "#homeView:not(.hidden)"
@@ -392,7 +403,7 @@ def main():
         context = browser.new_context(viewport={"width": 1680, "height": 1050}, reduced_motion="reduce")
         context.set_default_timeout(20_000)
         page = context.new_page()
-        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.on("pageerror", lambda error: (errors.append(str(error)), print(f"[browser-e2e] pageerror: {error}", flush=True)))
         page.on("dialog", lambda dialog: dialog.accept())
         load_app(page)
         checkpoint("home loaded")
@@ -511,6 +522,40 @@ def main():
             assert root_answer[section["sourceStart"]:section["sourceEnd"]] == section["sourceText"] == section["content"]
             assert not section["title"].endswith(("?", "？"))
 
+        # 同一拆解组必须位于父节点右侧的同一列，并按原文语义顺序竖排。
+        # 后续子树可以向右延伸，但不能把拆解模块自身推成横向长链。
+        page.click("#autoLayoutBtn")
+        page.wait_for_timeout(100)
+        project = project_state(page)
+        root = next(node for node in project["nodes"] if node["id"] == "root")
+        root_sections = [node for node in project["nodes"] if node["kind"] == "content_section" and node["sourceMessageId"] == root_message_id]
+        expected_section_ids = [
+            section["id"]
+            for section in sorted(
+                root_sections,
+                key=lambda item: (
+                    item.get("layoutOrder", 0),
+                    item.get("sectionOrder", 0),
+                    item.get("createdAt", ""),
+                    item.get("id", ""),
+                ),
+            )
+        ]
+        section_by_id = {section["id"]: section for section in root_sections}
+        assert len({section_by_id[node_id]["x"] for node_id in expected_section_ids}) == 1
+        assert all(section_by_id[node_id]["x"] == root["x"] + 430 for node_id in expected_section_ids)
+        actual_section_ids = [section["id"] for section in sorted(root_sections, key=lambda item: (item["y"], item["id"]))]
+        assert actual_section_ids == expected_section_ids
+        no_overlap(page)
+
+        # 完整自动排布是幂等操作；第二次点击不得让任何世界坐标漂移。
+        first_layout_positions = {node["id"]: (node["x"], node["y"]) for node in project["nodes"] if node.get("status") != "archived"}
+        page.click("#autoLayoutBtn")
+        page.wait_for_timeout(100)
+        project = project_state(page)
+        second_layout_positions = {node["id"]: (node["x"], node["y"]) for node in project["nodes"] if node.get("status") != "archived"}
+        assert second_layout_positions == first_layout_positions
+
         assert_node_visible(page, "root")
         checkpoint("decompose root visible")
         assert_node_visible(page, root_sections[0]["id"])
@@ -528,6 +573,34 @@ def main():
         page.click("#pathViewBtn")
         project = wait_project(page, "p=>p.viewMode==='all'")
         checkpoint("path mode restored")
+
+        # 增量新增只移动新分支；完整自动排布后，唯一子节点与父节点
+        # 中心对齐，并且严格位于父节点右侧一列。
+        unique_parent_id = root_sections[1]["id"]
+        stable_before_unique = {
+            node["id"]: (node["x"], node["y"])
+            for node in project["nodes"]
+            if node.get("status") != "archived"
+        }
+        select_node(page, unique_parent_id)
+        page.click(f'[data-node-branch="{unique_parent_id}"]')
+        page.wait_for_selector("#branchComposerDialog[open]")
+        unique_question = "请补充一个唯一后续例子。"
+        page.fill("#branchMessageDraft", unique_question)
+        page.click("#confirmBranchBtn")
+        project = wait_project(page, f"p=>p.nodes.some(n=>n.parentId==='{unique_parent_id}'&&n.question==='{unique_question}'&&n.messages.length>=2&&n.messages.at(-1)?.streaming!==true)")
+        unique_child = next(node for node in project["nodes"] if node.get("parentId") == unique_parent_id and node.get("question") == unique_question)
+        for node_id, coordinates in stable_before_unique.items():
+            current = next(node for node in project["nodes"] if node["id"] == node_id)
+            assert (current["x"], current["y"]) == coordinates
+        page.click("#autoLayoutBtn")
+        page.wait_for_timeout(100)
+        project = project_state(page)
+        unique_parent = next(node for node in project["nodes"] if node["id"] == unique_parent_id)
+        unique_child = next(node for node in project["nodes"] if node["id"] == unique_child["id"])
+        assert unique_child["x"] == unique_parent["x"] + 430
+        assert abs(center_y(page, unique_child["id"]) - center_y(page, unique_parent["id"])) < 4
+        no_overlap(page)
 
         select_node(page, root_sections[0]["id"])
         assert page.locator("#conversation").evaluate("el=>el.scrollTop") <= 2
@@ -636,7 +709,23 @@ def main():
         page.click('[data-decompose-source]')
         project = wait_project(page, f"p=>p.nodes.some(n=>n.parentId==='{source_action_node['id']}'&&n.kind==='content_section')")
         checkpoint("recursive decomposition complete")
-        recursive_child = next(node for node in project["nodes"] if node.get("parentId") == source_action_node["id"] and node.get("kind") == "content_section")
+        recursive_children = [node for node in project["nodes"] if node.get("parentId") == source_action_node["id"] and node.get("kind") == "content_section"]
+        recursive_child = recursive_children[0]
+        page.click("#autoLayoutBtn")
+        page.wait_for_timeout(100)
+        project = project_state(page)
+        source_action_node = next(node for node in project["nodes"] if node["id"] == source_action_node["id"])
+        recursive_children = [node for node in project["nodes"] if node.get("parentId") == source_action_node["id"] and node.get("kind") == "content_section"]
+        assert len({node["x"] for node in recursive_children}) == 1
+        assert all(node["x"] == source_action_node["x"] + 430 for node in recursive_children)
+        assert [node["id"] for node in sorted(recursive_children, key=lambda item: (item["y"], item["id"]))] == [
+            node["id"]
+            for node in sorted(
+                recursive_children,
+                key=lambda item: (item.get("layoutOrder", 0), item.get("sectionOrder", 0), item.get("createdAt", ""), item["id"]),
+            )
+        ]
+        no_overlap(page)
         select_node(page, recursive_child["id"])
         assert page.locator('[data-decompose-source-selection]').count() == 1
         assert page.locator('[data-promote-source-selection]').count() == 1
@@ -676,11 +765,13 @@ def main():
         page.locator('[data-annotation-color="mint"]').click()
         page.click('#annotationForm button[type="submit"]')
         project = wait_project(page, f"p=>p.nodes.find(n=>n.id==='{annotation['id']}').annotationColor==='mint'")
+        page.wait_for_function("document.querySelector('#saveStatus span')?.textContent==='已保存'")
         assert next(node for node in project["nodes"] if node["id"] == source_action_node["id"])["status"] == source_status_before_annotation
         page.locator(f'[data-edit-annotation="{annotation["id"]}"]').evaluate("el=>el.click()")
         page.wait_for_selector("#annotationDialog[open]")
         page.fill("#annotationTitleInput", "关键成本假设（已编辑）")
-        page.click('#annotationForm button[type="submit"]')
+        page.locator('#annotationForm').evaluate("form=>form.requestSubmit()")
+        page.wait_for_function(f"document.querySelector('.node[data-id=\"{annotation['id']}\"] h3')?.textContent==='关键成本假设（已编辑）'")
         project = wait_project(page, f"p=>p.nodes.find(n=>n.id==='{annotation['id']}').title==='关键成本假设（已编辑）'")
 
         # 也可以从节点的标注把手拖出一条临时虚线，在指定位置创建本地模块。
@@ -710,6 +801,13 @@ def main():
         dragged_annotation = next(node for node in project["nodes"] if node.get("kind") == "annotation" and node.get("title") == "拖拽创建的想法")
         assert dragged_annotation["annotationManualPosition"] is True
         assert page.locator(f'.node.kind-annotation[data-id="{dragged_annotation["id"]}"]').count() == 1
+        manual_annotation_position = (dragged_annotation["x"], dragged_annotation["y"])
+        page.click("#autoLayoutBtn")
+        page.wait_for_timeout(100)
+        project = project_state(page)
+        dragged_annotation = next(node for node in project["nodes"] if node["id"] == dragged_annotation["id"])
+        assert (dragged_annotation["x"], dragged_annotation["y"]) == manual_annotation_position
+        no_overlap(page)
         checkpoint("annotation drag placement")
 
         select_node(page, source_action_node["id"])
@@ -813,8 +911,11 @@ def main():
         page.wait_for_timeout(100)
         assert abs(center_y(page, parent_section["id"]) - sum(center_y(page, child["id"]) for child in siblings) / 2) < 4
         no_overlap(page)
-        stable_parent_center = center_y(page, parent_section["id"])
-        stable_first_child_center = center_y(page, siblings[0]["id"])
+        project = project_state(page)
+        stable_parent = next(node for node in project["nodes"] if node["id"] == parent_section["id"])
+        stable_first_child = next(node for node in project["nodes"] if node["id"] == siblings[0]["id"])
+        stable_parent_position = (stable_parent["x"], stable_parent["y"])
+        stable_first_child_position = (stable_first_child["x"], stable_first_child["y"])
 
         for child in siblings:
             select_node(page, child["id"])
@@ -850,8 +951,10 @@ def main():
         # Incremental placement preserves existing nodes, and a summary node
         # receives parallel branches in the next open right-side slots.
         select_node(page, parent_section["id"])
-        assert abs(center_y(page, parent_section["id"]) - stable_parent_center) < 4
-        assert abs(center_y(page, siblings[0]["id"]) - stable_first_child_center) < 4
+        stable_parent = next(node for node in project["nodes"] if node["id"] == parent_section["id"])
+        stable_first_child = next(node for node in project["nodes"] if node["id"] == siblings[0]["id"])
+        assert (stable_parent["x"], stable_parent["y"]) == stable_parent_position
+        assert (stable_first_child["x"], stable_first_child["y"]) == stable_first_child_position
         summary_question = "请从汇总结论补充一个执行例子。"
         for count in (1, 2):
             select_node(page, merge_node["id"])
@@ -868,6 +971,10 @@ def main():
         no_overlap(page)
         page.click("#autoLayoutBtn")
         page.wait_for_timeout(100)
+        project = project_state(page)
+        merge_node = next(node for node in project["nodes"] if node["id"] == merge_node["id"])
+        summary_siblings = [node for node in project["nodes"] if node.get("parentId") == merge_node["id"] and node.get("question") == summary_question]
+        assert all(node["x"] == merge_node["x"] + 430 for node in summary_siblings)
         no_overlap(page)
 
         leaf = siblings[0]
@@ -969,11 +1076,16 @@ def main():
         assert f"- 标注来源节点：{source_action_node['id']}" in markdown_export["text"]
         checkpoint("history and exports")
 
-        before_scale = project["camera"]["scale"]
+        before_scale = page.locator("#world").evaluate("el => new DOMMatrix(getComputedStyle(el).transform).a")
         page.locator("#viewport").hover()
-        page.mouse.wheel(0, 100)
-        project = wait_project(page, f"p=>p.camera.scale!=={before_scale}")
-        assert abs(project["camera"]["scale"] - before_scale) < 0.2
+        page.mouse.wheel(0, -100 if before_scale <= 0.49 else 100)
+        page.wait_for_function(
+            "before => Math.abs(new DOMMatrix(getComputedStyle(document.querySelector('#world')).transform).a - before) > 0.0001",
+            arg=before_scale,
+        )
+        after_scale = page.locator("#world").evaluate("el => new DOMMatrix(getComputedStyle(el).transform).a")
+        assert 0 < abs(after_scale - before_scale) < 0.3
+        assert 0.48 <= after_scale <= 1.65
 
         # 自定义模型选择器必须与触发器分离，且底层 select 仍同步供状态机/辅助技术使用。
         checkpoint("model picker opening")
@@ -1236,6 +1348,39 @@ def main():
         page2.close()
         checkpoint("reload page closed")
 
+        # 明确拆解意图会在回答完成后自动创建内容节点；模糊意图先弹出
+        # 预览确认，再按确认结果创建同一类内容节点。
+        auto_page = context.new_page()
+        auto_page.on("pageerror", lambda error: errors.append(str(error)))
+        auto_page.on("dialog", lambda dialog: dialog.accept())
+        load_app(auto_page)
+        auto_page.click("#homeQuestionInput")
+        auto_page.fill("#homeQuestionInput", "帮我拆解这个问题为多个节点")
+        auto_page.click("#homeStartBtn")
+        auto_page.wait_for_selector("#workspace:not(.hidden)")
+        wait_project(
+            auto_page,
+            "p=>p.nodes[0].decomposedMessageIds.length===1&&p.nodes.filter(n=>n.origin==='auto_decompose').length>=6",
+        )
+        auto_project = project_state(auto_page)
+        initial_auto_count = len([node for node in auto_project["nodes"] if node.get("origin") == "auto_decompose"])
+        assert len(auto_project["nodes"]) == initial_auto_count + 1
+        assert initial_auto_count >= 6
+        assert auto_page.locator(".operation-notice-toast strong").inner_text() == "已自动拆解回答"
+        auto_page.fill("#messageDraft", "这个问题应该分几步分析？")
+        auto_page.press("#messageDraft", "Enter")
+        auto_page.wait_for_selector("#confirmDialog[open]")
+        assert "准备创建 3 个拆解节点" in auto_page.locator("#confirmDialogTitle").inner_text()
+        assert "1. 识别问题" in auto_page.locator("#confirmDialogDetail").inner_text()
+        auto_page.click("#confirmDialogConfirmBtn")
+        wait_project(
+            auto_page,
+            f"p=>p.nodes.length==={initial_auto_count + 4}&&p.nodes.filter(n=>n.origin==='auto_decompose').length==={initial_auto_count + 3}",
+        )
+        no_overlap(auto_page)
+        auto_page.close()
+        checkpoint("intent-aware decomposition")
+
         # Auto Compact 使用最小隔离工程，避免让前面故意生成的长流式内容影响此 gate。
         active_id = seed["activeProjectId"]
         source_project = seed["projects"][active_id]
@@ -1443,7 +1588,7 @@ def main():
         checkpoint("browser context closed")
         browser.close()
         checkpoint("browser closed")
-        print("PASS: browser v12.5 Chinese/English/Japanese switching, user-content isolation, UTF-8 mojibake repair/migration, complex selections, recursive decomposition, independent top modules, readable dialogs, custom confirmations, annotations, folding/search, API-key connect/sync, Codex OAuth, streaming, reasoning, Compact, versions and exports.", flush=True)
+        print("PASS: browser v12.6 deterministic contour layout, Chinese/English/Japanese switching, user-content isolation, UTF-8 mojibake repair/migration, complex selections, recursive decomposition, independent top modules, readable dialogs, custom confirmations, annotations, folding/search, API-key connect/sync, Codex OAuth, streaming, reasoning, Compact, versions and exports.", flush=True)
 
 
 if __name__ == "__main__":

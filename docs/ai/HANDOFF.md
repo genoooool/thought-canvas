@@ -1,6 +1,6 @@
 # Handoff
 
-Current release: Thought Canvas v12.5.
+Current release: Thought Canvas v12.6.
 
 ## Completed implementation
 
@@ -8,11 +8,23 @@ Current release: Thought Canvas v12.5.
   work/confidence badges, support persisted background-color presets, and use
   grouped source-content actions.
 - Canvas selection dragging supports moving multiple selected nodes together.
-- Incremental node placement keeps existing coordinates stable, finds the next
-  open slot for new parallel nodes, and lays out descendants of annotation and
-  summary/merge nodes to the right without overlap.
-- Explicit auto-layout now runs a final whole-canvas collision pass after the
-  tree, annotation and merge-specific placement passes.
+- `layout-engine.js` now owns a deterministic, DOM-free contour-packing tree
+  layout. Every ordinary child is exactly one semantic column to the right of
+  its actual parent; unique children share the parent center line.
+- A `decomposition:*` group is one ordered vertical column. Sibling subtrees are
+  packed by their per-depth contours and recentered using the first and last
+  direct-child centers, keeping uneven deep branches compact.
+- Full layout places main/orphan trees plus merge, summary and annotation
+  subtrees as whole units. Cross-unit conflicts are resolved by the nearest
+  deterministic vertical translation, never by adding collision columns.
+- Incremental layout fixes unrelated stable coordinates, locally lays out one
+  pending `parentId + groupId` subtree and moves that whole unit only along Y.
+- Manual annotation roots remain fixed obstacles. Merge and annotation children
+  start from their root's actual x and extend right without foldback.
+- Prompt intent detection now supports automatic answer decomposition: explicit
+  requests such as “帮我拆解” create content-section nodes after the answer
+  completes, while softer multi-angle requests show a title preview for
+  confirmation. Ordinary questions remain single answer nodes.
 - Settings → General supports Simplified Chinese, English and Japanese with immediate preview and local persistence.
 - Static/dynamic UI, placeholders, accessibility labels, counts, dates and new-request response language are localized.
 - Project/user/model content is isolated from UI translation, including content equal to known UI terms.
@@ -24,15 +36,20 @@ Current release: Thought Canvas v12.5.
 
 ## Verification
 
-- Complete worktree `npm test` passed twice; one captured run was 36.74 seconds.
-- Focused `npm run check && npm run test:node` passed after the canvas layout changes.
-- Auto-layout regression coverage now checks for overlap both before and after
-  adding summary-node branches.
-- Local browser smoke verification confirmed the existing summary node and its
-  branch render in separate right-side columns without console warnings.
-- Sanitized staging and clean ZIP extraction each passed `npm run verify:package` with 59 files.
-- ZIP integrity passed `unzip -t`.
-- Clean extraction passed complete `npm test` in about 37 seconds.
+- `tests/layout-engine-test.mjs` covers mixed-height decomposition groups,
+  multi-level chains, nested uneven branches, exact determinism, incremental
+  vertical avoidance, merge units and manual annotations.
+- Chromium E2E checks world coordinates for vertical decomposition, exact
+  parent-relative columns, dense recursive layouts, stable incremental creation,
+  summary branches, manual annotations, no DOM overlap and second-run idempotence.
+- A local browser smoke check of a real 27-node project found zero visible-node
+  overlaps, exact 430px ordinary parent/child column deltas and no coordinate
+  changes after a second auto-layout action.
+- Node-level and branch-level generation paths both invoke the same guarded
+  decomposition flow; explicit requests are capped at eight modules and
+  preview titles render one per line.
+- Final command logs, sanitized package verification and clean-extract results are
+  recorded in `LAYOUT_FIX_REPORT.md` for the v12.6 delivery.
 
 ## Durable boundaries
 

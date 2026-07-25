@@ -1,4 +1,4 @@
-# Thought Canvas v12.5 产品审计与落地结果
+# Thought Canvas v12.6 产品审计与落地结果
 
 ## 原始优势
 

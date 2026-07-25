@@ -29,6 +29,21 @@ import {
 import { resolveMarkdownSelection } from './selection-utils.js';
 import { repairUtf8Mojibake, repairUtf8MojibakeDeep } from './text-encoding.js';
 import {
+  NODE_W,
+  NODE_MIN_H,
+  NODE_MAX_H,
+  COLUMN_GAP,
+  NODE_GAP,
+  GROUP_GAP,
+  computeBounds,
+  layoutChildGroup,
+  layoutTree,
+  nearestVerticalTranslation,
+  stableLayoutComparator,
+  translatePositions,
+  validateLayoutInvariants
+} from './layout-engine.js';
+import {
   DEFAULT_UI_LANGUAGE,
   UI_LANGUAGE_OPTIONS,
   normalizeUiLanguage,
@@ -39,15 +54,9 @@ import {
   t,
   responseLanguageInstruction
 } from './i18n.js';
-const APP_VERSION = '1.2.5';
+const APP_VERSION = '1.2.6';
 const LEGACY_STORAGE_KEYS = ['thought-canvas-mvp-state-v8', 'thought-canvas-mvp-state-v7', 'thought-canvas-mvp-state-v6'];
 const LEGACY_API_KEYS_KEYS = ['thought-canvas-api-keys-v8-session','thought-canvas-api-keys-v8-device','thought-canvas-api-keys-v6'];
-const NODE_W = 308;
-const NODE_MIN_H = 170;
-const NODE_MAX_H = 224;
-const COLUMN_GAP = 430;
-const NODE_GAP = 38;
-const GROUP_GAP = 88;
 const MERGE_CHAR_BUDGET = 48000;
 const DEFAULT_COMPACT_MESSAGE_LIMIT = 12;
 const ANNOTATION_TYPE_LABELS = Object.freeze({
@@ -1003,7 +1012,10 @@ function bindGlobalControls() {
     });
   });
   $('#deleteAnnotationBtn')?.addEventListener('click', deleteAnnotationFromDialog);
-  $('#annotationDialog')?.addEventListener('close', () => {
+  $('#annotationDialog')?.addEventListener('close', event => {
+    // A save can be followed by an immediate reopen before the queued close
+    // event is delivered. Do not let that stale event erase the new draft.
+    if (event.currentTarget.open) return;
     annotationDraftSourceId = '';
     annotationDraftPosition = null;
     annotationEditingNodeId = '';
@@ -1451,7 +1463,7 @@ function returnToSelectedSource() {
   if (!current || !source) return;
   state.selectedIds = [source.id];
   render();
-  requestAnimationFrame(() => focusNodesInView([source.id, current.id], { persist: true, maxScale: 1.05 }));
+  focusNodesInView([source.id, current.id], { persist: true, maxScale: 1.05 });
 }
 
 function focusNodesInView(nodeIds, { persist = true, maxScale = 1.12, minScale = .5 } = {}) {
@@ -3334,6 +3346,7 @@ async function sendInCurrentNode(nodeId, content, provider, model, reasoningEffo
   if (!node || node.status === 'archived' || busyIds.has(node.id)) return;
   const question = repairUtf8Mojibake(String(content || '').trim());
   if (!question) return;
+  const decomposeIntent = classifyDecomposeIntent(question);
   if (!requireConnectedProvider(provider, { openSettings: true })) return;
   reasoningEffort = ensureReasoningForProvider(provider, model, reasoningEffort);
   const isFirstRootQuestion = node.id === 'root' && !node.messages.some(message => message.role === 'assistant' && !message.error);
@@ -3374,6 +3387,7 @@ async function sendInCurrentNode(nodeId, content, provider, model, reasoningEffo
   saveAndRender();
 
   let goalSuggestion = '';
+  let answerCompleted = false;
   try {
     const result = await consumeGenerationStream({
       node,
@@ -3407,6 +3421,7 @@ async function sendInCurrentNode(nodeId, content, provider, model, reasoningEffo
       assistant.streamError = '';
       node.summary = summarizeForCard(cleanText);
       node.updatedAt = now();
+      answerCompleted = true;
       finishModelCall(call, { success: true, responseMessageId: assistant.id, outputChars: cleanText.length });
       if (isFirstRootQuestion && !confirmedGoal(state.goal).text && goalSuggestion) {
         state.goal = proposeGoal(state.goal, goalSuggestion, { id: makeId('goal_suggestion'), at: now() });
@@ -3437,6 +3452,7 @@ async function sendInCurrentNode(nodeId, content, provider, model, reasoningEffo
     autoLayoutGraph({ persist: false });
     pendingConversationScroll = { nodeId: node.id, mode: 'bottom' };
     saveAndRender();
+    if (answerCompleted) await maybeAutoDecomposeAnswer(node.id, assistant.id, decomposeIntent);
   }
 }
 
@@ -3445,6 +3461,7 @@ async function sendBranchFromNode(parentId, content, provider, model, reasoningE
   if (!parent || parent.status === 'archived') return;
   const question = repairUtf8Mojibake(String(content || '').trim());
   if (!question) return;
+  const decomposeIntent = classifyDecomposeIntent(question);
   if (!requireConnectedProvider(provider, { openSettings: true })) return;
   reasoningEffort = ensureReasoningForProvider(provider, model, reasoningEffort);
   const cutoffIsLatest = !cutoffMessageId || parent.messages.at(-1)?.id === cutoffMessageId;
@@ -3495,6 +3512,7 @@ async function sendBranchFromNode(parentId, content, provider, model, reasoningE
   child.messages.push(assistant);
   busyIds.add(child.id);
   saveAndRender();
+  let answerCompleted = false;
   try {
     const result = await consumeGenerationStream({
       node: child,
@@ -3518,6 +3536,7 @@ async function sendBranchFromNode(parentId, content, provider, model, reasoningE
       assistant.streamError = '';
       child.summary = summarizeForCard(cleanText);
       child.updatedAt = now();
+      answerCompleted = true;
       finishModelCall(call, { success: true, responseMessageId: assistant.id, outputChars: cleanText.length });
     }
   } catch (error) {
@@ -3541,6 +3560,7 @@ async function sendBranchFromNode(parentId, content, provider, model, reasoningE
     autoLayoutGraph({ persist: false });
     focusNodesInView([parent.id, child.id], { persist: false, renderNow: false });
     saveAndRender();
+    if (answerCompleted) await maybeAutoDecomposeAnswer(child.id, assistant.id, decomposeIntent);
   }
 }
 
@@ -3610,7 +3630,7 @@ function nextLayoutOrder(parentId, groupId) {
 function startModelCall({ nodeId, provider, model, reasoningEffort = 'auto', contextSnapshot, purpose }) {
   const call = {
     id: makeId('generation'), nodeId, provider, model, reasoningEffort, purpose,
-    promptTemplateVersion: 'thought-canvas-context-v12.5',
+    promptTemplateVersion: 'thought-canvas-context-v12.6',
     contextSnapshotId: contextSnapshot?.id || '',
     contextVersion: contextSnapshot?.version || 0,
     compactVersion: contextSnapshot?.compactVersion || 0,
@@ -3647,7 +3667,13 @@ async function retryFailedRequest(nodeId, messageId) {
   await sendInCurrentNode(node.id, previousUser.content, selection.provider, selection.model, selection.reasoningEffort);
 }
 
-async function decomposeMessage(nodeId, messageId, { scope = 'message', selectedText = '', selectionStart = -1, selectionEnd = -1 } = {}) {
+async function decomposeMessage(nodeId, messageId, {
+  scope = 'message',
+  selectedText = '',
+  selectionStart = -1,
+  selectionEnd = -1,
+  autoMode = 'manual'
+} = {}) {
   const node = getNode(nodeId);
   const message = node?.messages.find(item => item.id === messageId && item.role === 'assistant');
   if (!node) return showOperationError('拆解失败', '当前节点不存在，可能已被删除。');
@@ -3688,9 +3714,31 @@ async function decomposeMessage(nodeId, messageId, { scope = 'message', selected
     });
     const boundStart = Number.isFinite(payload?.binding?.selectionStart) ? payload.binding.selectionStart : selectionStart;
     const boundEnd = Number.isFinite(payload?.binding?.selectionEnd) ? payload.binding.selectionEnd : selectionEnd;
-    const created = createContentSections(node.id, payload.sections || [], {
+    const sections = Array.isArray(payload.sections) ? payload.sections : [];
+    const preparedSections = sections.slice(0, 8);
+    if (autoMode !== 'manual' && preparedSections.length < 2) {
+      showOperationNotice(t('暂不自动拆解'), t('这条回答暂时没有形成足够清晰的多个模块，已保留为单一回答节点。'));
+      return;
+    }
+    if (autoMode === 'confirm') {
+      const preview = preparedSections
+        .map((section, index) => `${index + 1}. ${String(section?.title || t('内容模块 {count}', { count: index + 1 })).trim()}`)
+        .join('\n');
+      const confirmed = await requestConfirmation({
+        eyebrow: t('识别到拆解意图'),
+        title: t('准备创建 {count} 个拆解节点', { count: preparedSections.length }),
+        message: t('这条问题看起来包含多个分析层面。确认后会把当前回答拆成可继续追问的内容节点。'),
+        detail: preview,
+        confirmLabel: t('创建 {count} 个节点', { count: preparedSections.length })
+      });
+      if (!confirmed) {
+        showOperationNotice(t('已保留完整回答'), t('你可以稍后从回答下方手动拆解。'));
+        return;
+      }
+    }
+    const created = createContentSections(node.id, preparedSections, {
       sourceMessageId: messageId,
-      origin: scope === 'selection' ? 'selection_decompose' : 'manual_decompose',
+      origin: scope === 'selection' ? 'selection_decompose' : autoMode !== 'manual' ? 'auto_decompose' : 'manual_decompose',
       sourceScope: scope,
       selectedSourceText: sourceText,
       sourceBaseStart: scope === 'selection' ? boundStart : 0
@@ -3700,8 +3748,18 @@ async function decomposeMessage(nodeId, messageId, { scope = 'message', selected
     if (scope === 'selection' && boundStart < 0) showOperationNotice('已按可见文字拆解', '这段跨格式选区无法稳定映射到 Markdown 字符位置，系统已保留所见文字并标记为“原文位置未定位”。');
     if (scope === 'message') node.decomposedMessageIds.push(messageId);
     node.decompositions = Array.isArray(node.decompositions) ? node.decompositions : [];
-    node.decompositions.push({ id: makeId('decomposition'), messageId, scope, selectionStart: boundStart, selectionEnd: boundEnd, childIds: created, createdAt: now() });
+    node.decompositions.push({
+      id: makeId('decomposition'),
+      messageId,
+      scope,
+      selectionStart: boundStart,
+      selectionEnd: boundEnd,
+      childIds: created,
+      trigger: autoMode === 'manual' ? 'manual' : autoMode,
+      createdAt: now()
+    });
     node.status = 'exploring';
+    if (autoMode === 'auto') showOperationNotice(t('已自动拆解回答'), t('已根据你的请求创建 {count} 个可继续追问的节点。', { count: created.length }));
     autoLayoutGraph({ persist: false });
     focusNodesInView([node.id, ...created], { persist: false, renderNow: false, maxScale: .96 });
   } catch (error) {
@@ -4121,7 +4179,7 @@ function buildPrompt(snapshot, latestQuestion) {
     `5. 用户长期约束：\n${constraints}`,
     `6. 已确认的最终目标（AI 建议未经用户确认时不会出现在这里）：\n${snapshot.goal.text || '未设置已确认目标'}`,
     `7. Compact v${snapshot.compactVersion || 0}：\n${compactText}`,
-    '要求：直接聚焦回答当前问题；继承上述明确事实和专有名词；不同分支之间不得互相引用未在 Context Package 中出现的内容；不要输出内部 JSON；不要自动拆成画布节点。',
+    '要求：直接聚焦回答当前问题；继承上述明确事实和专有名词；不同分支之间不得互相引用未在 Context Package 中出现的内容；不要输出内部 JSON；不要在回答正文中输出画布节点，是否拆解由界面根据用户的拆解意图处理。',
     responseLanguageInstruction(state.uiLanguage)
   ].join('\n\n');
 }
@@ -4155,6 +4213,35 @@ function decompositionInstruction() {
     custom: state.decomposePrompt || ''
   };
   return [presets[state.decomposePreset] || presets.structure, state.decomposePrompt && state.decomposePreset !== 'custom' ? state.decomposePrompt : ''].filter(Boolean).join('\n');
+}
+
+function classifyDecomposeIntent(question) {
+  const text = String(question || '').replace(/\s+/g, ' ').trim();
+  if (!text || /(?:不要|无需|不用|不需要).{0,10}(拆解|拆分|分解)/.test(text)) return { mode: 'none', text };
+  const explicit = [
+    /(?:帮我|请|能否|可以|想要|我要).{0,18}(拆解|拆分|分解|拆成|分成)/,
+    /(?:拆解|拆分|分解|拆成|分成).{0,24}(节点|模块|部分|问题|几个|多层)/,
+    /(?:把|将).{0,60}(问题|回答|内容|这段|它).{0,18}(拆成|分成|拆解成|分解成)/
+  ].some(pattern => pattern.test(text));
+  if (explicit) return { mode: 'auto', text };
+  const preview = [
+    /从.+?(哪些|几个|不同).{0,12}(方面|角度|层面|部分)/,
+    /(?:应该|可以).{0,12}(分几层|分几步|分几个部分|分成几步|分成几个节点|分成几个模块)/,
+    /(?:按|按照).{0,12}(步骤|阶段|主题|观点|难点).{0,12}(分析|讲解|整理)/
+  ].some(pattern => pattern.test(text));
+  return { mode: preview ? 'confirm' : 'none', text };
+}
+
+async function maybeAutoDecomposeAnswer(nodeId, messageId, intent) {
+  if (!intent || intent.mode === 'none') return;
+  const node = getNode(nodeId);
+  const message = node?.messages.find(item => item.id === messageId && item.role === 'assistant');
+  if (!node || !message || message.error || message.partial || !String(message.content || '').trim()) return;
+  try {
+    await decomposeMessage(nodeId, messageId, { scope: 'message', autoMode: intent.mode });
+  } catch (error) {
+    showOperationError(t('自动拆解失败'), friendlyErrorMessage(error));
+  }
 }
 
 function normalizeAssistantContent(text) {
@@ -5525,303 +5612,286 @@ function autoLayoutGraph({ persist = true, preserveExisting = true } = {}) {
       .filter(node => node.layoutStable || node.annotationManualPosition)
       .map(node => [node.id, { x: node.x, y: node.y }]))
     : null;
-  const byId = new Map(nodes.map(node => [node.id, node]));
-  const primaryChildren = new Map(nodes.map(node => [node.id, []]));
-  const merges = [];
-  const annotations = [];
-  for (const node of nodes) {
-    if (['merge','merge_summary'].includes(node.kind)) { merges.push(node); continue; }
-    if (node.kind === 'annotation') { annotations.push(node); continue; }
-    if (node.parentId && byId.has(node.parentId)) primaryChildren.get(node.parentId).push(node);
-  }
-  for (const children of primaryChildren.values()) {
-    children.sort((a,b)=>(a.layoutOrder||0)-(b.layoutOrder||0) || (a.sectionOrder||0)-(b.sectionOrder||0) || a.createdAt.localeCompare(b.createdAt));
-  }
-  const root = byId.get('root') || nodes.find(n=>!n.parentId && !['merge','merge_summary'].includes(n.kind)) || nodes[0];
-  const subtreeHeight = new Map();
-  const calc = node => {
-    const children = primaryChildren.get(node.id) || [];
-    if (!children.length) { const h=nodeHeight(node); subtreeHeight.set(node.id,h); return h; }
-    const childHeights = children.map(child => calc(child));
-    const gaps = children.slice(1).reduce((sum, child, index) => sum + siblingGap(children[index], child), 0);
-    const childrenHeight = childHeights.reduce((sum, height) => sum + height, 0) + gaps;
-    const h=Math.max(nodeHeight(node),childrenHeight);
-    subtreeHeight.set(node.id,h); return h;
-  };
-  calc(root);
-  const rootCenter = (root.y || 350) + nodeHeight(root)/2;
-  const place = (node, depth, centerY, originX = 180) => {
-    node.x = originX + depth * COLUMN_GAP;
-    node.y = centerY - nodeHeight(node)/2;
-    const children = primaryChildren.get(node.id) || [];
-    if (!children.length) return;
-    const total = children.reduce((sum,child)=>sum+(subtreeHeight.get(child.id)||nodeHeight(child)),0)
-      + children.slice(1).reduce((sum, child, index) => sum + siblingGap(children[index], child), 0);
-    let cursor = centerY - total/2;
-    children.forEach((child, index) => {
-      const h=subtreeHeight.get(child.id)||nodeHeight(child);
-      place(child, depth+1, cursor+h/2, originX);
-      cursor += h + (index < children.length - 1 ? siblingGap(child, children[index + 1]) : 0);
-    });
-  };
-  place(root,0,rootCenter);
-
-  // Imported/orphan nodes are placed as separate tidy trees below the main tree.
-  let orphanTop = Math.max(...nodes.filter(n=>!['merge','merge_summary'].includes(n.kind) && n.kind !== 'annotation').map(n=>n.y+nodeHeight(n))) + GROUP_GAP;
-  nodes.filter(n=>!['merge','merge_summary'].includes(n.kind) && n.kind !== 'annotation' && n.id!==root.id && (!n.parentId || !byId.has(n.parentId))).forEach(orphan => {
-    calc(orphan); const h=subtreeHeight.get(orphan.id)||nodeHeight(orphan);
-    place(orphan,0,orphanTop+h/2); orphanTop += h+GROUP_GAP;
-  });
-
-  // Merge nodes use the average center of their selected sources and appear one column after them.
-  merges.sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).forEach(merge => {
-    const sources=state.edges.filter(e=>['merge','merged_from'].includes(e.relation)&&e.target===merge.id).map(e=>byId.get(e.source)).filter(Boolean);
-    const maxDepth=sources.length?Math.max(...sources.map(n=>Math.round((n.x-180)/COLUMN_GAP))):1;
-    merge.x=180+(maxDepth+1)*COLUMN_GAP;
-    const desired=sources.length?sources.reduce((sum,n)=>sum+n.y+nodeHeight(n)/2,0)/sources.length:orphanTop;
-    merge.y=desired-nodeHeight(merge)/2;
-  });
-  resolveMergeOverlaps(merges, nodes);
-  const annotationStacks = new Map();
-  annotations.sort((a, b) => Number(a.layoutOrder || 0) - Number(b.layoutOrder || 0) || String(a.createdAt).localeCompare(String(b.createdAt))).forEach(annotation => {
-    const source = byId.get(annotation.annotationSourceNodeId || annotation.parentId);
-    if (!source || annotation.annotationManualPosition) return;
-    const stack = annotationStacks.get(source.id) || 0;
-    const position = defaultAnnotationPosition(source, { excludeId: annotation.id, startOffset: stack });
-    annotation.x = position.x;
-    annotation.y = position.y;
-    annotationStacks.set(source.id, stack + 1);
-  });
-  resolveAnnotationOverlaps(annotations, nodes);
-
-  // Annotation and summary/merge descendants are independent from the main
-  // tree, but still need a real branch layout. Anchor their first column to
-  // the right of the parent and space sibling branches vertically.
-  [...merges, ...annotations].forEach(parent => {
-    const children = primaryChildren.get(parent.id) || [];
-    if (!children.length) return;
-    children.forEach(child => calc(child));
-    const total = children.reduce((sum, child) => sum + (subtreeHeight.get(child.id) || nodeHeight(child)), 0)
-      + children.slice(1).reduce((sum, child, index) => sum + siblingGap(children[index], child), 0);
-    const centerY = parent.y + nodeHeight(parent) / 2;
-    let cursor = centerY - total / 2;
-    children.forEach((child, index) => {
-      const height = subtreeHeight.get(child.id) || nodeHeight(child);
-      place(child, 1, cursor + height / 2, parent.x);
-      cursor += height + (index < children.length - 1 ? siblingGap(child, children[index + 1]) : 0);
-    });
-  });
-  const desiredPositions = new Map(nodes.map(node => [node.id, { x: node.x, y: node.y }]));
+  const manualPositions = new Map(nodes
+    .filter(node => node.annotationManualPosition)
+    .map(node => [node.id, { x: node.x, y: node.y }]));
+  const desiredPositions = computeFullAutoLayout(nodes);
   if (preserveExisting) {
     applyIncrementalLayout(nodes, stablePositions, desiredPositions);
   } else {
-    resolveAutoLayoutOverlaps(nodes);
-    nodes.forEach(node => { node.layoutStable = true; });
+    nodes.forEach(node => {
+      const position = desiredPositions.get(node.id);
+      if (!position || node.status === 'archived') return;
+      node.x = position.x;
+      node.y = position.y;
+      node.layoutStable = true;
+    });
+    assertFullLayoutInvariants(nodes, manualPositions);
   }
+  updateWorldExtent(nodes);
   if (persist) saveAndRender(); else renderCanvasOnly();
 }
 
-function applyIncrementalLayout(nodes, stablePositions, desiredPositions) {
-  const stableIds = new Set(stablePositions ? stablePositions.keys() : []);
-  stableIds.forEach(id => {
-    const node = nodes.find(item => item.id === id);
-    const position = stablePositions.get(id);
-    if (node && position) {
-      node.x = position.x;
-      node.y = position.y;
-    }
+function isDetachedLayoutRoot(node) {
+  return node?.kind === 'annotation' || ['merge', 'merge_summary'].includes(node?.kind);
+}
+
+function buildOrdinaryChildrenMap(nodes) {
+  const children = new Map(nodes.map(node => [node.id, []]));
+  nodes.forEach(node => {
+    if (!node.parentId || isDetachedLayoutRoot(node) || !children.has(node.parentId)) return;
+    children.get(node.parentId).push(node);
+  });
+  children.forEach(items => items.sort(stableLayoutComparator));
+  return children;
+}
+
+function collectOrdinarySubtree(rootId, byId, childrenByParent) {
+  const result = [];
+  const queue = [rootId];
+  const seen = new Set();
+  while (queue.length) {
+    const id = queue.shift();
+    if (seen.has(id) || !byId.has(id)) continue;
+    seen.add(id);
+    result.push(byId.get(id));
+    queue.push(...(childrenByParent.get(id) || []).map(node => node.id));
+  }
+  return result;
+}
+
+function addLayoutUnit(layout, unitNodes, positions, occupied, { fixed = false, preferredDy = 0 } = {}) {
+  const dy = fixed ? 0 : nearestVerticalTranslation({
+    positions: layout.positions,
+    nodes: unitNodes,
+    occupied,
+    preferredDy,
+    minY: 20,
+    gap: NODE_GAP,
+    getHeight: nodeHeight
+  });
+  const translated = translatePositions(layout.positions, 0, dy);
+  unitNodes.forEach(node => {
+    const position = translated.get(node.id);
+    if (!position) return;
+    positions.set(node.id, position);
+    occupied.push({ node, x: position.x, y: position.y });
+  });
+  return translated;
+}
+
+function computeFullAutoLayout(nodes) {
+  const active = nodes.filter(node => node.status !== 'archived');
+  const byId = new Map(active.map(node => [node.id, node]));
+  const childrenByParent = buildOrdinaryChildrenMap(active);
+  const positions = new Map();
+  const occupied = [];
+  const placedIds = new Set();
+  const placeTree = (root, rootX, rootCenterY, options = {}) => {
+    const unitNodes = collectOrdinarySubtree(root.id, byId, childrenByParent).filter(node => !placedIds.has(node.id));
+    if (!unitNodes.length) return null;
+    const layout = layoutTree(unitNodes, { rootId: root.id, rootX, rootCenterY, getHeight: nodeHeight });
+    const translated = addLayoutUnit(layout, unitNodes, positions, occupied, options);
+    unitNodes.forEach(node => placedIds.add(node.id));
+    return { unitNodes, positions: translated };
+  };
+
+  // Manual annotations are immutable obstacles. Their descendants are laid
+  // out from the annotation's actual x, while all automatic units avoid the
+  // complete fixed subtree using vertical translation only.
+  const annotations = active.filter(node => node.kind === 'annotation').sort(stableLayoutComparator);
+  annotations.filter(node => node.annotationManualPosition).forEach(annotation => {
+    placeTree(annotation, Number(annotation.x), Number(annotation.y) + nodeHeight(annotation) / 2, { fixed: true });
   });
 
-  const occupied = nodes
-    .filter(node => stableIds.has(node.id) && node.status !== 'archived')
-    .map(node => ({ node, x: node.x, y: node.y }));
-  const pending = nodes
-    .filter(node => !stableIds.has(node.id) && node.status !== 'archived')
-    .sort((a, b) => depthOf(a.id) - depthOf(b.id)
-      || Number(a.layoutOrder || 0) - Number(b.layoutOrder || 0)
-      || String(a.createdAt).localeCompare(String(b.createdAt)));
+  const mainRoot = byId.get('root') || active.find(node => !node.parentId && !isDetachedLayoutRoot(node));
+  if (mainRoot && !placedIds.has(mainRoot.id)) {
+    const centerY = Number.isFinite(Number(mainRoot.y)) ? Number(mainRoot.y) + nodeHeight(mainRoot) / 2 : 350;
+    placeTree(mainRoot, 180, centerY);
+  }
 
-  for (const node of pending) {
-    const parent = node.parentId ? nodes.find(item => item.id === node.parentId) || getNode(node.parentId) : null;
-    const preferred = desiredPositions.get(node.id) || { x: node.x, y: node.y };
+  active
+    .filter(node => !isDetachedLayoutRoot(node) && !placedIds.has(node.id) && (!node.parentId || !byId.has(node.parentId)))
+    .sort(stableLayoutComparator)
+    .forEach(orphan => {
+      const bottom = occupied.length ? Math.max(...occupied.map(item => item.y + nodeHeight(item.node))) : 20;
+      placeTree(orphan, 180, bottom + GROUP_GAP + nodeHeight(orphan) / 2);
+    });
+
+  const annotationStacks = new Map();
+  annotations.filter(node => !node.annotationManualPosition).forEach(annotation => {
+    const source = byId.get(annotation.annotationSourceNodeId || annotation.parentId);
+    const sourcePosition = source ? positions.get(source.id) : null;
+    if (!source || !sourcePosition) return;
+    const stack = annotationStacks.get(source.id) || 0;
+    const preferredX = sourcePosition.x + NODE_W + 82;
+    const preferredY = sourcePosition.y + stack * (nodeHeight(annotation) + 34);
+    placeTree(annotation, preferredX, preferredY + nodeHeight(annotation) / 2);
+    annotationStacks.set(source.id, stack + 1);
+  });
+
+  active.filter(node => ['merge', 'merge_summary'].includes(node.kind)).sort(stableLayoutComparator).forEach(merge => {
+    const sources = state.edges
+      .filter(edge => ['merge', 'merged_from'].includes(edge.relation) && edge.target === merge.id)
+      .map(edge => byId.get(edge.source))
+      .filter(Boolean);
+    const sourcePositions = sources.map(source => ({ source, position: positions.get(source.id) })).filter(item => item.position);
+    const rootX = sourcePositions.length
+      ? Math.max(...sourcePositions.map(item => item.position.x)) + COLUMN_GAP
+      : Number.isFinite(Number(merge.x)) ? Number(merge.x) : 610;
+    const centerY = sourcePositions.length
+      ? sourcePositions.reduce((sum, item) => sum + item.position.y + nodeHeight(item.source) / 2, 0) / sourcePositions.length
+      : Number(merge.y || 280) + nodeHeight(merge) / 2;
+    placeTree(merge, rootX, centerY);
+  });
+
+  // Malformed imports can contain unreachable components. Keep the fallback
+  // deterministic and column-based rather than preserving stale collisions.
+  active.filter(node => !placedIds.has(node.id)).sort(stableLayoutComparator).forEach(node => {
+    if (placedIds.has(node.id)) return;
+    const bottom = occupied.length ? Math.max(...occupied.map(item => item.y + nodeHeight(item.node))) : 20;
+    placeTree(node, isDetachedLayoutRoot(node) ? Number(node.x || 180) : 180, bottom + GROUP_GAP + nodeHeight(node) / 2);
+  });
+  return positions;
+}
+
+function applyIncrementalLayout(nodes, stablePositions, desiredPositions) {
+  const active = nodes.filter(node => node.status !== 'archived');
+  const byId = new Map(active.map(node => [node.id, node]));
+  const stableIds = new Set(stablePositions ? stablePositions.keys() : []);
+  stableIds.forEach(id => {
+    const node = byId.get(id);
+    const position = stablePositions.get(id);
+    if (!node || !position) return;
+    node.x = position.x;
+    node.y = position.y;
+  });
+  const pendingIds = new Set(active.filter(node => !stableIds.has(node.id)).map(node => node.id));
+  const occupied = active
+    .filter(node => stableIds.has(node.id))
+    .map(node => ({ node, x: node.x, y: node.y }));
+  const pendingChildren = new Map(active.map(node => [node.id, []]));
+  active.forEach(node => {
+    if (!pendingIds.has(node.id) || !pendingIds.has(node.parentId) || isDetachedLayoutRoot(node)) return;
+    pendingChildren.get(node.parentId).push(node);
+  });
+  pendingChildren.forEach(items => items.sort(stableLayoutComparator));
+  const topRoots = active.filter(node => pendingIds.has(node.id) && (!node.parentId || !pendingIds.has(node.parentId) || isDetachedLayoutRoot(node)));
+  const groups = new Map();
+  topRoots.forEach(root => {
+    const sharedGroup = root.parentId && root.groupId && !isDetachedLayoutRoot(root);
+    const key = sharedGroup ? `${root.parentId}:${root.groupId}` : root.id;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(root);
+  });
+  const collectPending = rootIds => {
+    const result = [];
+    const queue = [...rootIds];
+    const seen = new Set();
+    while (queue.length) {
+      const id = queue.shift();
+      if (seen.has(id) || !pendingIds.has(id) || !byId.has(id)) continue;
+      seen.add(id);
+      result.push(byId.get(id));
+      queue.push(...(pendingChildren.get(id) || []).map(node => node.id));
+    }
+    return result;
+  };
+  const orderedGroups = [...groups.values()]
+    .map(roots => roots.sort(stableLayoutComparator))
+    .sort((a, b) => depthOf(a[0].id) - depthOf(b[0].id) || stableLayoutComparator(a[0], b[0]));
+
+  orderedGroups.forEach(roots => {
+    const unitNodes = collectPending(roots.map(root => root.id));
+    if (!unitNodes.length) return;
+    const parent = roots[0].parentId ? byId.get(roots[0].parentId) : null;
+    let layout;
+    if (parent && roots.every(root => root.parentId === parent.id) && roots.every(root => !isDetachedLayoutRoot(root))) {
+      layout = layoutChildGroup(parent, unitNodes, {
+        rootIds: roots.map(root => root.id),
+        parentX: parent.x,
+        parentCenterY: parent.y + nodeHeight(parent) / 2,
+        getHeight: nodeHeight
+      });
+    } else {
+      const root = roots[0];
+      const preferred = desiredPositions.get(root.id) || { x: Number(root.x || 180), y: Number(root.y || 280) };
+      layout = layoutTree(unitNodes, {
+        rootId: root.id,
+        rootX: preferred.x,
+        rootCenterY: preferred.y + nodeHeight(root) / 2,
+        getHeight: nodeHeight
+      });
+    }
+    const dy = nearestVerticalTranslation({
+      positions: layout.positions,
+      nodes: unitNodes,
+      occupied,
+      preferredDy: 0,
+      minY: 20,
+      gap: NODE_GAP,
+      getHeight: nodeHeight
+    });
+    const translated = translatePositions(layout.positions, 0, dy);
+    unitNodes.forEach(node => {
+      const position = translated.get(node.id);
+      node.x = position.x;
+      node.y = position.y;
+      node.layoutStable = true;
+      pendingIds.delete(node.id);
+      occupied.push({ node, x: node.x, y: node.y });
+    });
+  });
+
+  active.filter(node => pendingIds.has(node.id)).sort(stableLayoutComparator).forEach(node => {
+    const parent = node.parentId ? byId.get(node.parentId) : null;
+    const preferred = desiredPositions.get(node.id) || { x: Number(node.x || 180), y: Number(node.y || 280) };
     const position = findIncrementalNodePosition(node, parent, preferred, occupied);
     node.x = position.x;
     node.y = position.y;
-    occupied.push({ node, x: node.x, y: node.y });
     node.layoutStable = true;
-  }
+    occupied.push({ node, x: node.x, y: node.y });
+  });
 }
 
 function findIncrementalNodePosition(node, parent, preferred, occupied) {
-  const positionedIds = new Set(occupied.map(item => item.node.id));
-  const siblings = parent
-    ? state.nodes.filter(item => positionedIds.has(item.id) && item.id !== node.id && item.parentId === parent.id && item.kind !== 'annotation' && item.status !== 'archived')
-    : [];
-  const sameGroup = node.groupId
-    ? siblings.filter(item => item.groupId && item.groupId === node.groupId)
-    : [];
-  const baseX = parent ? parent.x + COLUMN_GAP : Number(preferred.x || 180);
-  let baseY = parent
+  const x = parent ? parent.x + COLUMN_GAP : Number(preferred.x || 180);
+  const y = parent
     ? parent.y + nodeHeight(parent) / 2 - nodeHeight(node) / 2
     : Number(preferred.y || 280);
-  if (sameGroup.length) {
-    const last = sameGroup.reduce((latest, item) => item.y > latest.y ? item : latest, sameGroup[0]);
-    baseY = last.y + nodeHeight(last) + NODE_GAP;
-  } else if (parent) {
-    baseY = Number(preferred.y || baseY);
-  }
-
-  const yStep = Math.max(NODE_MIN_H, nodeHeight(node)) + NODE_GAP;
-  const offsets = [0];
-  for (let step = 1; step <= 28; step += 1) offsets.push(step, -step);
-  const overlaps = (candidate, other) =>
-    candidate.x < other.x + NODE_W + NODE_GAP &&
-    candidate.x + NODE_W + NODE_GAP > other.x &&
-    candidate.y < other.y + nodeHeight(other) + NODE_GAP &&
-    candidate.y + nodeHeight(node) + NODE_GAP > other.y;
-
-  // Search the current column first (same level, then nearby vertical lanes).
-  // Only move to a later column if every nearby slot is occupied, so adding a
-  // node never pushes existing content out of the way.
-  for (let column = 0; column <= 14; column += 1) {
-    for (const offset of offsets) {
-      const candidate = {
-        x: clamp(baseX + column * COLUMN_GAP, 20, 11200),
-        y: clamp(baseY + offset * yStep, 20, 11200)
-      };
-      if (!occupied.some(other => overlaps(candidate, other.node))) return candidate;
-    }
-  }
-  return {
-    x: clamp(baseX + 15 * COLUMN_GAP, 20, 11200),
-    y: clamp(baseY, 20, 11200)
-  };
+  const positions = new Map([[node.id, { x, y, centerY: y + nodeHeight(node) / 2, depth: parent ? 1 : 0 }]]);
+  const dy = nearestVerticalTranslation({
+    positions,
+    nodes: [node],
+    occupied,
+    preferredDy: 0,
+    minY: 20,
+    gap: NODE_GAP,
+    getHeight: nodeHeight
+  });
+  return { x, y: y + dy };
 }
 
-function resolveAutoLayoutOverlaps(nodes) {
+function assertFullLayoutInvariants(nodes, manualPositions) {
   const active = nodes.filter(node => node.status !== 'archived');
-  const ordered = [...active].sort((a, b) =>
-    a.x - b.x ||
-    a.y - b.y ||
-    depthOf(a.id) - depthOf(b.id) ||
-    String(a.createdAt).localeCompare(String(b.createdAt))
-  );
-  const placed = [];
-  const offsets = [0];
-  for (let step = 1; step <= 28; step += 1) offsets.push(step, -step);
-
-  const overlaps = (candidate, node, other) =>
-    candidate.x < other.x + NODE_W + NODE_GAP &&
-    candidate.x + NODE_W + NODE_GAP > other.x &&
-    candidate.y < other.y + nodeHeight(other) + NODE_GAP &&
-    candidate.y + nodeHeight(node) + NODE_GAP > other.y;
-
-  for (const node of ordered) {
-    const preferred = { x: node.x, y: node.y };
-    const yStep = Math.max(NODE_MIN_H, nodeHeight(node)) + GROUP_GAP;
-    let resolved = null;
-    for (let column = 0; column <= 14 && !resolved; column += 1) {
-      for (const offset of offsets) {
-        const candidate = {
-          x: clamp(preferred.x + column * COLUMN_GAP, 20, 11200),
-          y: clamp(preferred.y + offset * yStep, 20, 11200)
-        };
-        if (!placed.some(other => overlaps(candidate, node, other))) {
-          resolved = candidate;
-          break;
-        }
-      }
-    }
-    if (!resolved) {
-      resolved = {
-        x: clamp(preferred.x + 15 * COLUMN_GAP, 20, 11200),
-        y: clamp(preferred.y, 20, 11200)
-      };
-    }
-    node.x = resolved.x;
-    node.y = resolved.y;
-    placed.push(node);
+  const positions = new Map(active.map(node => [node.id, { x: node.x, y: node.y }]));
+  const errors = validateLayoutInvariants(active, positions, {
+    getHeight: nodeHeight,
+    manualPositions
+  });
+  if (!errors.length) return;
+  console.error('Auto-layout invariant failure', errors);
+  if (globalThis.__THOUGHT_CANVAS_LAYOUT_STRICT__ || globalThis.__apiState) {
+    throw new Error(`自动排布违反布局不变量：${errors.join(', ')}`);
   }
 }
 
-function resolveAnnotationOverlaps(annotations, nodes) {
-  const occupied = nodes.filter(node => node.kind !== 'annotation' && node.status !== 'archived');
-  const ordered = [...annotations].sort((a, b) => Number(a.layoutOrder || 0) - Number(b.layoutOrder || 0) || String(a.createdAt).localeCompare(String(b.createdAt)));
-  for (const annotation of ordered) {
-    if (annotation.status === 'archived') continue;
-    const preferred = { x: Number(annotation.x || 20), y: Number(annotation.y || 20) };
-    const resolved = nearestOpenAnnotationPosition(annotation, preferred, occupied);
-    annotation.x = resolved.x;
-    annotation.y = resolved.y;
-    occupied.push(annotation);
-  }
-}
-
-function nearestOpenAnnotationPosition(annotation, preferred, occupied) {
-  const height = nodeHeight(annotation);
-  const xStep = NODE_W + 42;
-  const yStep = height + 34;
-  const offsets = [{ dx: 0, dy: 0, distance: 0 }];
-  for (let dx = -3; dx <= 3; dx += 1) {
-    for (let dy = -12; dy <= 12; dy += 1) {
-      if (dx === 0 && dy === 0) continue;
-      offsets.push({ dx, dy, distance: Math.hypot(dx * xStep, dy * yStep) });
-    }
-  }
-  offsets.sort((a, b) => a.distance - b.distance || Math.abs(a.dy) - Math.abs(b.dy) || Math.abs(a.dx) - Math.abs(b.dx));
-  const seen = new Set();
-  for (const offset of offsets) {
-    const candidate = {
-      x: clamp(preferred.x + offset.dx * xStep, 20, 11200),
-      y: clamp(preferred.y + offset.dy * yStep, 20, 11200)
-    };
-    const key = `${candidate.x}:${candidate.y}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const collision = occupied.some(other =>
-      candidate.x < other.x + NODE_W + 18 && candidate.x + NODE_W + 18 > other.x &&
-      candidate.y < other.y + nodeHeight(other) + 18 && candidate.y + height + 18 > other.y
-    );
-    if (!collision) return candidate;
-  }
-  return { x: clamp(preferred.x, 20, 11200), y: clamp(preferred.y, 20, 11200) };
-}
-
-function siblingGap(a, b) {
-  if (!a || !b) return NODE_GAP;
-  return a.groupId && b.groupId && a.groupId === b.groupId ? NODE_GAP : GROUP_GAP;
-}
-
-function resolveMergeOverlaps(merges, nodes) {
-  const nonMerges = nodes.filter(node => !['merge','merge_summary'].includes(node.kind));
-  for (const merge of merges) {
-    let attempts = 0;
-    while (attempts++ < 100) {
-      const hit = [...nonMerges, ...merges.filter(item => item !== merge)].find(other =>
-        merge.x < other.x + NODE_W && merge.x + NODE_W > other.x &&
-        merge.y < other.y + nodeHeight(other) + NODE_GAP && merge.y + nodeHeight(merge) + NODE_GAP > other.y
-      );
-      if (!hit) break;
-      merge.y = hit.y + nodeHeight(hit) + GROUP_GAP;
-    }
-  }
-}
-
-function resolveResidualOverlaps(nodes) {
-  const byColumn = new Map();
-  for (const node of nodes) {
-    const column = Math.round((node.x - 180) / COLUMN_GAP);
-    if (!byColumn.has(column)) byColumn.set(column, []);
-    byColumn.get(column).push(node);
-  }
-  for (const columnNodes of byColumn.values()) {
-    columnNodes.sort((a,b)=>a.y-b.y);
-    let bottom=-Infinity;
-    for (const node of columnNodes) {
-      if (node.y < bottom + NODE_GAP) node.y = bottom + NODE_GAP;
-      bottom=node.y+nodeHeight(node);
-    }
-  }
+function updateWorldExtent(nodes) {
+  const active = nodes.filter(node => node.status !== 'archived');
+  const positions = new Map(active.map(node => [node.id, { x: node.x, y: node.y }]));
+  const bounds = computeBounds(active, positions, { getHeight: nodeHeight });
+  world.style.width = `${Math.max(12000, Math.ceil(bounds.maxX + 800))}px`;
+  world.style.height = `${Math.max(12000, Math.ceil(bounds.maxY + 800))}px`;
 }
 
 function graphHasOverlaps() {

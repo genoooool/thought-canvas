@@ -19,7 +19,7 @@ async function createClient(mode, readOnlyProfile = 'allowed', permissionsField 
   const client = new CodexAppServerClient({
     command: fake,
     cwd: root,
-    version: '1.2.5',
+    version: '1.2.6',
     env: {
       ...process.env,
       FAKE_CODEX_STATE_FILE: stateFile,

@@ -1,4 +1,4 @@
-# Thought Canvas v12.5 交互规范
+# Thought Canvas v12.6 交互规范
 
 ## 1. 界面语言
 

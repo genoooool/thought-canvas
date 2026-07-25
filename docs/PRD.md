@@ -1,6 +1,6 @@
-# Thought Canvas v12.5 PRD
+# Thought Canvas v12.6 PRD
 
-版本：1.2.5
+版本：1.2.6
 
 ## 1. 产品目标
 

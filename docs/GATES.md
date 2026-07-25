@@ -1,4 +1,4 @@
-# Thought Canvas v12.5 — 多语言与文本编码可验证 Gate
+# Thought Canvas v12.6 — 多语言、编码与布局可验证 Gate
 
 本次按照 `agentic-project-continuation` 的 **Complex continuation** 执行。每个 Gate 先定义可验证条件，再实现和回归；全部通过后才构建净化 ZIP。
 
@@ -78,7 +78,7 @@ npm run test:browser
 
 ### 验收条件
 
-- 版本号、README、启动文档、架构、限制、测试报告和 `docs/ai` 项目记忆同步到 1.2.5；
+- 版本号、README、启动文档、架构、限制、测试报告和 `docs/ai` 项目记忆同步到 1.2.6；
 - staging 不包含 `.git`、`.env.local`、运行时设置、项目、备份、缓存、截图、嵌套归档或符号链接；
 - 新增 `i18n.js`、`text-encoding.js` 及对应测试列入发布必需文件；
 - `npm run verify:package` 通过；

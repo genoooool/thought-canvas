@@ -151,14 +151,14 @@ try {
   await refreshSessionToken();
 
   const health = await request('/api/health');
-  assert.equal(health.version, '1.2.5');
+  assert.equal(health.version, '1.2.6');
   assert.equal(health.host, '127.0.0.1');
   const htmlResponse = await fetch(`${base}/`);
   assert.match(String(htmlResponse.headers.get('content-type') || ''), /^text\/html;\s*charset=utf-8$/i);
   assert.match(await htmlResponse.text(), /<meta charset="UTF-8"/i);
   const scriptResponse = await fetch(`${base}/app.js`);
   assert.match(String(scriptResponse.headers.get('content-type') || ''), /^text\/javascript;\s*charset=utf-8$/i);
-  assert.match(await scriptResponse.text(), /const APP_VERSION = '1\.2\.5'/);
+  assert.match(await scriptResponse.text(), /const APP_VERSION = '1\.2\.6'/);
   const hostileHost = await requestWithHostHeader('malicious.example');
   assert.equal(hostileHost.status, 403);
   assert.match(hostileHost.payload.error, /回环地址/);
@@ -238,7 +238,7 @@ try {
   // repair it before becoming the active project and record the migration.
   const restoreEncodingProject = {
     ...structuredClone(rawEncodingProject),
-    version: '1.2.5',
+    version: '1.2.6',
     projectId: 'project_encoding_restore',
     projectTitle: '恢复前的干净项目',
     goal: { text: '恢复前目标', source: 'user', status: 'edited', version: 1, history: [] },
@@ -341,7 +341,7 @@ try {
 
   const answerText = '## 第一部分\n\n测试项目的代号是“北极星17”。这一事实必须被后续分支继承。\n\n## 第二部分\n\n这是第二部分的完整讲解，不能被改写成一个新问题。\n\n## 第三部分\n\n这是第三部分的完整讲解，用于验证选中文字拆解。';
   const project = {
-    version: '1.2.5', projectId: 'project_gate', projectTitle: 'Gate 项目',
+    version: '1.2.6', projectId: 'project_gate', projectTitle: 'Gate 项目',
     projectCreatedAt: new Date().toISOString(), projectUpdatedAt: new Date().toISOString(),
     goal: { text: '验证 v12 状态机', source: 'user', status: 'edited', version: 1, history: [] },
     contextVersionCounter: 2,
@@ -577,7 +577,7 @@ try {
   const restoredWorkspace = await request('/api/workspace');
   assert.equal(restoredWorkspace.activeProjectId, 'project_gate');
 
-  console.log('PASS: v12.5 language persistence/instructions, UTF-8 mojibake migration and backups, provider-response repair, API-key connect/sync, reasoning forwarding, local storage, session-token isolation, NDJSON generation, traceable decomposition, Compact, backup restore and restart recovery.');
+  console.log('PASS: v12.6 language persistence/instructions, UTF-8 mojibake migration and backups, provider-response repair, API-key connect/sync, reasoning forwarding, local storage, session-token isolation, NDJSON generation, traceable decomposition, Compact, backup restore and restart recovery.');
 } finally {
   await stopServer();
   await new Promise(resolve => upstream.close(resolve));

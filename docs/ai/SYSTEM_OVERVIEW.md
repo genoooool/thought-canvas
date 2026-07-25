@@ -1,10 +1,11 @@
 # System Overview
 
-Thought Canvas v12.5 is a local-first single-page application served by `server.mjs` without a build step.
+Thought Canvas v12.6 is a local-first single-page application served by `server.mjs` without a build step.
 
 ## Main modules
 
 - `app.js`: project state, canvas/dialog rendering, context snapshots, model streaming, language application, browser-boundary text repair, selections, annotations, folding and exports.
+- `layout-engine.js`: pure deterministic contour packing, semantic-column coordinates, whole-unit vertical collision avoidance and layout invariant validation.
 - `i18n.js`: Chinese/English/Japanese dictionaries, dynamic pattern translation, DOM localization observer, locale formatting and response-language instructions.
 - `text-encoding.js`: conservative Windows-1252-to-UTF-8 recovery for strings and nested data.
 - `selection-utils.js`: pure rendered-Markdown-to-source mapping with unknown-range fallback.
@@ -45,4 +46,5 @@ The repair signature is auditable, but the historical ingress cannot be proven f
 - `tests/text-encoding-test.mjs`: screenshot sample, Japanese/double-decoding and false-positive guards.
 - `tests/local-api-test.mjs`: UTF-8 headers, disk/settings/backup/provider migration, language persistence and real local security.
 - `tests/browser_e2e.py`: live language switching, user-content isolation, browser-side encoding migration and all existing UI workflows.
+- `tests/layout-engine-test.mjs`: mixed-height vertical decomposition, rightward descendants, nested contours, exact determinism, incremental stability, merge and annotation fixtures.
 - Existing selection/core/Codex suites continue to cover trusted reasoning and provider integration.

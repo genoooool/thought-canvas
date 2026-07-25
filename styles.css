@@ -2891,6 +2891,7 @@ body.keyboard-navigation [contenteditable="true"]:focus-visible {
   background: rgba(255,255,255,.025);
   font-size: 12.5px;
   line-height: 1.65;
+  white-space: pre-wrap;
 }
 .modal-actions .danger-action {
   color: #261416;

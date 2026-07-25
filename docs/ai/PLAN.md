@@ -1,4 +1,4 @@
-# v12.5 Continuation Plan
+# v12.6 Continuation Plan
 
 Mode: Complex continuation
 
@@ -28,7 +28,16 @@ Mode: Complex continuation
 
 ## Gate 4 — Documentation and clean release — PASS
 
-- Synchronize product docs and `docs/ai` memory to v12.5.
+- Synchronize product docs and `docs/ai` memory to v12.6.
 - Run the complete worktree suite twice with captured exit status.
 - Build a sanitized staging tree and pass the strict package scanner.
 - Create the final ZIP, validate integrity, clean-extract it, and rerun scanner plus complete tests.
+
+## Gate 5 — Deterministic semantic-column layout — PASS
+
+- Place each `decomposition:*` group in one ordered vertical column.
+- Derive every ordinary child x from its actual parent and semantic depth.
+- Pack uneven sibling subtrees with per-depth contours and direct-child centering.
+- Resolve cross-tree collisions by deterministic whole-unit vertical translation only.
+- Preserve unrelated stable branches during incremental placement and keep manual annotations fixed.
+- Prove no overlap, no foldback, exact second-run idempotence and dense nested behavior in pure and Chromium tests.
